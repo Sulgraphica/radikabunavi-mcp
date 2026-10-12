@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.radikabunavi/japan-stock-edinet",
+  "description": "Japanese stocks from EDINET/TDnet filings: fair-value range, 6-axis score, DCF, earnings, screening",
+  "title": "ラジ株ナビ (Radikabunavi) - Japanese stock data from EDINET/TDnet",
+  "version": "1.0.0",
+  "websiteUrl": "https://radikabunavi.com/mcp-service",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://radikabunavi.com/mcp",
+      "headers": [
+        {
+          "description": "Optional. 'Bearer rk_...' API key from https://radikabunavi.com/mcp-mypage. Not needed for OAuth-capable clients (Claude, ChatGPT), which sign in via OAuth 2.1 + PKCE with dynamic client registration.",
+          "isSecret": true,
+          "name": "Authorization"
+        }
+      ]
+    }
+  ]
+}
