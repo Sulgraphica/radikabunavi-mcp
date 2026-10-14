@@ -117,3 +117,7 @@ contact@radikabunavi.com
 ---
 
 Documentation © Radikabunavi
+
+## License
+
+The documentation in this repository is licensed under [CC BY 4.0](LICENSE) (Copyright CLOUD NINE CO., LTD.). The Radikabunavi service, its data, and its logo are not covered by this license.
