@@ -18,15 +18,18 @@ https://radikabunavi.com/mcp
 
 - Transport: Streamable HTTP
 - Authentication (either one):
-  - OAuth 2.1 with PKCE and dynamic client registration (used automatically by Claude and ChatGPT)
+  - OAuth 2.1 with PKCE and dynamic client registration (used automatically by Claude and ChatGPT; no API key needed)
   - Bearer API key (`Authorization: Bearer rk_...`), issued free from <https://radikabunavi.com/mcp-mypage>
 
 ## Connect
 
 Official guides (Japanese):
 
+- Getting started in 3 steps (for beginners): <https://radikabunavi.com/mcp-start>
 - Service overview and setup: <https://radikabunavi.com/mcp-service>
 - Claude connection guide: <https://radikabunavi.com/mcp-claude-guide>
+- ChatGPT connection guide: <https://radikabunavi.com/mcp-chatgpt-guide>
+- Use with Claude Code: <https://radikabunavi.com/claude-code-edinet>
 
 Typical setups:
 
@@ -48,11 +51,12 @@ Typical setups:
 
 The exact config key names differ between clients. Check your client's documentation.
 
-## Tools (21)
+## Tools (22)
 
 | Tool | Description |
 |---|---|
 | `search_stocks` | Search companies by name or securities code (absorbs hiragana/katakana and full/half-width variants) |
+| `get_stock_analysis` | Overall analysis of a stock in one call: financials, ideal price, 6-axis score, industry benchmark, earnings forecast and DCF |
 | `list_edinet_stocks` | Coverage, data sources and reference guides |
 | `get_edinet_financial_data` | Annual financial data from EDINET filings, with company forecasts from TDnet |
 | `get_earnings_forecast` | Company forecasts (next-period results and dividends) extracted from TDnet earnings reports |
@@ -85,7 +89,7 @@ Tool list taken from the live server card: <https://radikabunavi.com/.well-known
 | Standard | 1,980 JPY / month | 1,000 |
 | Pro | 3,980 JPY / month | 2,000 |
 
-Free covers annual data only. Quarterly (Q1-Q3) earnings data requires Light or above. Watchlist size also varies by plan. See <https://radikabunavi.com/mcp-service> for current details.
+Free covers annual data only. Quarterly (Q1-Q3) earnings data requires Light or above. Watchlist limit: Free 10 stocks, Light 50 stocks (as of 2026-10-15; higher plans are listed on the service page). See <https://radikabunavi.com/mcp-service> for current details.
 
 ## Data sources
 
