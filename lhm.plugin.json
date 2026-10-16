@@ -1,0 +1,875 @@
+{
+  "author": "ラジ株ナビ (Radikabunavi)",
+  "cloudEndpoint": "https://radikabunavi.com/mcp",
+  "description": "Japanese listed-company data for AI agents, built from EDINET annual reports and TDnet timely disclosures (about 3,700 companies, up to 10 years). One call to get_stock_analysis returns financials, a fair-value range, a 6-axis score, DCF, industry comparison and the latest company forecast; follow-up tools cover timely disclosures with before/after numbers for forecast revisions, large shareholdings, major customers and screening on 120+ metrics. Stock-split adjusted and one-off gains flagged. Free plan: 100 calls/day. OAuth (Claude, ChatGPT) or API key. Not investment advice.",
+  "homepage": "https://radikabunavi.com/mcp-service",
+  "icon": "https://radikabunavi.com/favicon.jpg",
+  "identifier": "radikabunavi-japan-stock-edinet",
+  "name": "ラジ株ナビ — Japanese Stocks (EDINET/TDnet)",
+  "prompts": [],
+  "resources": [],
+  "tags": [
+    "japan",
+    "japanese-stocks",
+    "stocks",
+    "edinet",
+    "tdnet",
+    "finance",
+    "earnings",
+    "screening",
+    "valuation",
+    "remote-mcp",
+    "mcp"
+  ],
+  "tools": [
+    {
+      "name": "get_edinet_financial_data",
+      "description": "銘柄コードを指定して年次財務データ（EDINET有価証券報告書ベース）を取得します。\n会社業績予想（TDnet 決算短信ベース）も同時に返るため、財務面の分析はこのツールで完結します。\n\n【関連ツール】「○○を分析して」のような総合的な分析には get_stock_analysis が便利です（財務・理想株価・6軸スコア・DCF・業種比較・会社予想を1回でまとめて返します。返したセクションの数ぶん、最大6回分の利用回数を使います）。\nこのツールは、全年度・内訳・注意事項の全文など、個別の深掘りに向いています。\n割安/割高を見る材料は get_edinet_financial_data（財務）・get_ideal_price（理想株価レンジ）・get_stock_score（6軸スコア）・get_dcf_valuation（DCF評価）・get_industry_benchmark（業種比較。codes にその銘柄を渡す）に分かれており、1つだけでは判断材料が偏ることがあります。\n\nカバレッジ: 全上場企業 約3,700社（プライム/スタンダード/グロース）、過去10年分。\n会計基準: JGAAP / IFRS / USGAAP を自動判定して metadata.accountingStandard に記載。\n年度の範囲: metrics も fiscalYear も省略すると、fiscalYears は直近2期（最新期と前期）だけを返します（全年度・全指標は応答が大きすぎるため）。全年度が必要なら fiscalYear: \"all\"、指標を絞るなら metrics を指定してください（metrics 指定時は全年度）。\nグラフ: 複数年度を返すとき（直近2期だけの既定も含む）、chartSeries に年ごとの推移（直近10期。売上・利益 / 1株指標 / ROE など。metrics を絞ったときはその指標だけ）を単位ごとのグループで添えます。推移を伝えるときはグラフ（棒・折れ線）にすると分かりやすいです。\n株数の変化: 複数年度を返すとき（metrics 指定時を除く）、shareCountChange に株数の5年・10年変化率（%、自己株式を除く発行済株式数・分割調整後。マイナス＝自社株買い・消却で減少、プラス＝増資等で増加）と、比べた年度・出せないときの理由を添えます（screen_stocks の shareCountChange5y / 10y と同じ値）。\n原典トレーサビリティ: 各年度に docId と edinetFilingUrl（EDINET 提出URL）を含む。\nFCFの定義差: 本ツールの fcf は「営業CF+投資CF」（簡易FCF）。get_dcf_valuation の baseFCF は「営業CF−設備投資」で別物の指標であり、同じ「FCF」表記でも値が数倍違うことがある（実例: 9434 の2026年3月期は 1,229億円 対 6,485億円）。投資CFには資産売却・M&A・有価証券の取得等の一過性項目が乗るため、DCFでは後者を使う。利用者に説明する際はどちらの定義かを明示すること。金融業（銀行・証券・保険・その他金融）の fcf・fcfMargin は営業CFに顧客預り金・貸出金・保険料などの増減が入るため意味を持たない（値は返すが事業の稼ぐ力としては解釈しないこと）。\n株主還元指標の定義差: totalReturnRatio（総還元性向）の分子はCF計算書の配当金支払額（＝その期に実際に支払った現金。期末配当が翌期支払いのため実質「前期末配当＋当期中間配当」）、payoutRatio（配当性向）の分子はその期に宣言した1株配当。増配企業では前者が構造的に低く出るため、総還元性向が配当性向を下回っていてもデータ不備ではない（該当時は shareholderReturnNote を付与）。\n営業収入（operatingRevenue2）の注意: 小売・流通業等で損益計算書に「売上高」（netSales）とは別の行で「営業収入」（テナント収入・加盟店からの収入・不動産賃貸収入等）を載せる会社があり、JGAAPのみ原本に記載があれば operatingRevenue2 として付与します（0にはせず、無ければ省略）。**netSalesIncludesOperatingRevenue2 が true の会社では netSales に operatingRevenue2 が既に含まれているため、netSales に operatingRevenue2 を足さないでください**（二重計上になります）。false の会社は netSales が売上高のみのため、決算短信の「営業収益」等と比較する場合はnetSales + operatingRevenue2 を使う必要があります。\n営業利益率(operatingMargin)の注意: 銀行・証券・保険等の金融業はP/Lに「営業利益」区分が制度上存在せず、原本XBRLのoperatingIncomeには連結タグが無く持株会社の単体値しか入らない。このツール（annual.json直読み）が返すoperatingMarginは金融業でもこの単体値ベースのままのため、金融業の収益性を見る場合はoperatingMarginではなくordinaryMargin（経常利益率=ordinaryIncome/netSales、連結で正しく取得できる）を使うこと。（get_stock_score・edinet-summary.json・銘柄詳細チャートAPIのoperatingMarginは金融業では既にordinaryMarginベースに補正済み（3経路とも共有ヘルパー applyFinancialMarginBasis を使用）。marginBasisフィールドで算出根拠を確認できる。）\n経常利益(ordinaryIncome)・経常利益率(ordinaryMargin)の注意: IFRS・米国基準の会社には経常利益の区分が無く、ordinaryIncome には税引前利益が入っています（metadata.accountingStandard が IFRS / USGAAP の会社。数値の意味は変わらず、表示名のみ「税引前利益」と読み替えてください）。\n有利子負債の精度: ibdSource フィールドで計算根拠を明示\n  - aggregate_tag: IFRS集約タグ採用（最も信頼性高い、例: トヨタ 38.79兆）\n  - mixed: IFRS社別拡張タグ + 構成要素合算\n  - banking: JGAAP銀行業ロジック（借入金 + 短期社債）\n  - component_sum: 集約タグ非開示時の構成要素合算\n  - unknown: USGAAP連結XBRL不開示銘柄（interestBearingDebt は null、オリックス等）\n広義 ibd（リース込み）は interestBearingDebtBroad、狭義は interestBearingDebt。\n\n会社業績予想（companyForecast フィールド）:\n  - 最新決算短信の会社予想を自動で含めます（数値が 1 つでもあれば付与）。\n  - 内容: 来期売上・利益予想、来期配当予想、サプライズ判定。\n  - 年度短信（本決算）に予想EPSが無い場合（IFRS企業で頻出。予想EPSがXBRLにタグ化されず、\n    レンジのみ・配当予想のみが取れるケースがある）、開示日が最も新しく予想EPSを持つ\n    四半期短信（q1/q2/q3）へ自動フォールバックします。フォールバックした場合のみ\n    companyForecastPeriod（採用したperiod）と companyForecastNote（注意書き）を付与します。\n  - 速報開示や予想修正開示には数値が欠落するケースがあり、その場合は companyForecast 自体を省略します。\n  - 四半期の実績・予想を明示的に指定したい場合は get_earnings_forecast が使えます。\n  - companyForecast.actual / prior と latestFullYearActual の ordinaryIncomeToTotalAssets は決算短信の\n    「総資産経常利益率」（経常利益 ÷ 期首期末平均の総資産。IFRS・米国基準は税引前利益ベース）です。\n    fiscalYears の roa（ROA＝純利益 ÷ 期末総資産）とは別の指標なので、ROA として並べないでください。\n  - fiscalYears の roe は決算短信・有報の「自己資本利益率」と同じ値にそろえています（2026-10-10）。\n    roeBasis: reported = 有報「主要な経営指標等の推移」の記載値（会社の計算。原則 純利益 ÷ 期首・期末平均の自己資本）/\n    averageEquity = 純利益 ÷ 期首・期末平均の自己資本で計算した値（記載値の無い年度）/\n    periodEndEquity = 期首の自己資本が無い年度（上場初年度・データ欠け）の 純利益 ÷ 期末の自己資本。\n    companyForecast.actual / prior と latestFullYearActual の roe は決算短信の「自己資本当期純利益率」の記載値で、同じ定義です。\n\n構造化データ（数値指標に加えて以下が各年度に含まれます。metrics 未指定なら自動付与、\n指定する場合はキー名を含めれば取得可能）:\n  - segments: 報告セグメント別の売上・営業利益・資産（segmentName / sales / operatingIncome / ordinaryIncome / assets）。ordinaryIncomeはセグメント損益を経常利益で開示する企業のみ付与されます（1911住友林業等）。\n    各行に segmentNameJa（日本語名。要素名からの機械的な訳）・isTotal（true=合計・調整行。個別セグメントではない）・salesShare（構成比%）・operatingMargin（営業利益率%）・salesYoY / operatingIncomeYoY（前期比%）・salesDisplay / operatingIncomeDisplay（\"1.70兆円\" 形式）を添えます。売上はセグメント間の内部売上を含む場合があり、外部顧客への売上だけの値ではありません（segmentsNote 参照）。\n  - amountDisplay: 年度ごとの主要な金額（売上・利益・総資産など）の表示用の文字列（\"1.70兆円\"）。値そのものは円単位の数値で返ります。\n  - directors: 役員一覧（氏名 / 役職 / 任期 / 保有株式数。生年月日は返しません）\n  - directorRemunerationBreakdown: 役員報酬カテゴリ別内訳（取締役 / 社外取締役 / 監査役等の人数・固定・賞与・株式報酬・合計）\n  - crossShareholdings: 政策保有株式の銘柄別明細（行番号 / 上場区分 / 銘柄名 / 株数 / 簿価 / 相互保有フラグ）\n  - majorShareholders: 有報「大株主の状況」上位10名（順位 / 名 / 住所 / 株数 / 持株比率）。個人株主の氏名は表示しません（name は「個人株主」と表示し、住所は返しません。順位・株数・持株比率はそのまま）\n  - foreignShareholdingRatio / individualShareholdingRatio / institutionalShareholdingRatio: 株主構成比\n\n【重要: 株主構成比の単位】majorShareholders[].shareholdingRatio、および\nforeignShareholdingRatio / individualShareholdingRatio / institutionalShareholdingRatio は\nすべて 0-1 表記です（例: 0.128 = 12.8%、0.228 = 22.8%）。\n同じレスポンス内の roe / equityRatio / operatingMargin 等の財務指標は % 表記（例: 15.2 = 15.2%）\nであり、株主構成比のフィールドだけ単位が異なるので混同しないでください。\n  - get_major_shareholders_history は同名フィールド shareholdingRatio を % 表記（例: 12.8 = 12.8%）\n    で返します。本ツールと get_major_shareholders_history の値をそのまま比較・混在させると\n    100倍の誤読が発生します（0.128 を「0.128%」と読む等）。\n  - institutionalShareholdingRatio は「金融機関（信託銀行・保険会社等）」のみの比率です。\n    証券会社・事業法人（政策保有株主等）は含まれず、一般的な「機関投資家」より狭い定義です。\n  - foreign/individual/institutional の3カテゴリは EDINET原本の株主区分のうち一部のみを\n    集計したものです（政府・地方公共団体、証券会社、その他法人（事業法人）が非集計）。\n    3カテゴリの合計は 100%（1.0）になりません（例: トヨタでは合計約78%、残り約22%は\n    事業法人の政策保有等が該当）。「合計が100%にならない＝データ欠損」ではなく仕様です。\n\n有報テキストブロック（定性情報。includeTextBlocks 指定時のみ付与・最新年度または fiscalYear 指定期）:\n  - 事業等のリスク / 経営者による分析（MD&A） / 経営方針 / コーポレートガバナンス /\n    サステナビリティ / 人的資本 / 研究開発 / 関係会社 / 政策保有株式（本文）/ 経理の状況 等 13 カテゴリ\n  - 各カテゴリは plainText（HTMLタグ除去済み）。長文（数KB〜数十KB）になることがあるため opt-in 設計\n  - 戻り値には availableTextBlocks フィールドが自動付与され、未取得カテゴリが列挙されます。\n    定性情報は includeTextBlocks を指定して本ツールを呼ぶと取得できます。\n    例: includeTextBlocks: [\"businessRisk\", \"managementAnalysis\"]\n\n関連ツール: 適時開示は get_timely_disclosures、大量保有は get_large_holdings、\nスクリーニングは screen_stocks、複数銘柄一覧は list_edinet_stocks。\n\nearningsQuality: 対象年度（fiscalYear 指定時はその期、省略時は最新期）の特別損益による\n一過性の純利益歪みを検出したフィールドです（検出時のみ付与）。\n\n応答の metricLabels は英語キー→日本語指標名の対訳です。利用者向けには日本語名（例: roe→「ROE（自己資本利益率）」）のほうが伝わりやすくなります。\nデータ品質・値の異常・不具合に触れる場合も同様で、フィールド名を示すときは「発行済株式数（sharesOutstanding）」のように日本語を主・英語キーを括弧内にすると読みやすくなります。\n\nsplitCheck（分割履歴がある会社のみ）: 既定は要約（splits・adjustedFields・conflict）のみ。詳細は includeSplitDetails: true で、1株あたりの値ごとに raw（短信・有報の記載値）・adjusted（使った値）・factor・basis・method と、検算の材料（純利益÷EPSで逆算した株数と分割前の株数の比）を載せます。adjusted が検算と食い違う（conflict: true 等）ときは raw を基に判断してください。\n\n有価証券報告書の訂正（amendments・correctedFrom。訂正報告書が出た年度のみ。metrics 指定時はキー名を含めれば取得可能）:\n  - amendments がある年度は、訂正報告書の値を反映済みです。\n  - amendments は提出順の訂正の記録です（docId・amendsDocId＝訂正対象の原本・disclosedDate・numberOfSubmission・fields＝直前の版から値が変わった項目。[] は値の変わらない本文だけの訂正、null は直前の版と比較できなかったことを示します）。\n  - correctedFrom は原本（最初の有報）の値で、訂正後と値が違う項目だけを載せます（原本に値が無かった項目は null、{} は値の変わらない訂正）。原本を取得できなかった年度には付きません。\n  - correctedFrom の1株あたりの値・株数（eps・dilutedEps・bps・dividendPerShare・dividendInterim・dividendYearEnd・sharesOutstanding・treasuryShares）と配当性向・DOE・配当利回りは、同じ年度の訂正後の値と同じ係数で分割調整済みです。訂正前後の値はそのまま比べられます（splitCheck の raw は訂正後の記載値で、correctedFrom は含みません）。\n  - treasuryShares の定義: 有報の「自己株式等」欄の値で、提出会社名義の自己株式だけです。連結子会社（従業員向けの信託・財団等）が保有する自社株は含みません。決算短信・JQuants の自己株式数（連結。子会社保有分を含む）とはその分だけ差が出ます（実例 3659: 有報 34,253,200株・短信 35,753,527株、差は子会社保有の 1,500,327株）。\n  - numberOfSubmission の欠番は、途中の訂正が記録に無いことを示します（その回の fields は分かりません）。\n\n応答に watchlistSuggestion が含まれる場合、それはこの銘柄が利用者の監視リストに未登録であること（action: \"can-add\"）、または監視リストが上限に達していること（action: \"limit-reached\"）を知らせる情報です（note に要点）。利用者が追加を望んだときは add_to_watchlist で登録できます。\n\n※ 本データは情報提供を目的とし、投資助言・推奨ではありません。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "証券コード（例: 7203）"
+          },
+          "metrics": {
+            "description": "取得する指標名の配列（省略時は全指標を返します。fiscalYear も省略すると直近2期だけ返します）。日本語名や略語（例: 「PER」「自己資本比率」）は内部で英語キーに正規化されますが、原則は英語キー推奨。【主要指標の日本語対応】per（PER / priceEarningsRatio）, pbr（PBR / priceBookValueRatio）, roe（ROE / 自己資本利益率）, roa（ROA）, equityRatio（自己資本比率）, operatingMargin（営業利益率）, dividendYield（配当利回り）, payoutRatio（配当性向）, doe（DOE / 株主資本配当率）, fcf（簡易フリーCF＝営業CF+投資CF。DCFのbaseFCFとは別定義）, ebitda（EBITDA）, marketCap（時価総額）, netCash（ネットキャッシュ）, salesGrowth（売上成長率）。【利用可能な全指標】[P/L] netSales, operatingRevenue2（営業収入。テナント収入・加盟店からの収入・不動産賃貸収入等。JGAAPのみ、原本に無ければ省略）, netSalesIncludesOperatingRevenue2（netSalesに既にoperatingRevenue2が含まれているか。true=合計行のため足すと二重計上、false=netSalesは売上高のみで含まない。operatingRevenue2がある年度のみ付与）, operatingIncome, ordinaryIncome, netIncome, costOfGoodsSold, grossProfit, sellingGeneralAndAdministrative, incomeBeforeIncomeTaxes, nonOperatingIncome, nonOperatingExpenses, extraordinaryIncome, extraordinaryLoss, incomeTaxes, comprehensiveIncome [B/S] totalAssets, netAssets, equity, retainedEarnings, currentAssets, currentLiabilities, noncurrentAssets, noncurrentLiabilities, totalLiabilities, capitalStock, capitalSurplus, cashAndDeposits, marketableSecurities, investmentSecurities, shortTermBorrowings, currentPortionOfLongTermDebt, longTermDebt, bondsPayable, currentPortionOfBonds, commercialPapers, accountsReceivable, inventories, accountsPayable, propertyPlantAndEquipment, goodwill, intangibleAssets（日本基準はのれんを含む無形固定資産合計、国際会計基準はのれんを含まない。intangibleAssetsIncludesGoodwill=true の年度はのれんを含む）, land, buildingsAndStructures, nonControllingInterests, deferredTaxAssets, deferredTaxLiabilities, retirementBenefitLiability, leaseObligations, accumulatedOCI [C/F] cashFlowFromOperations, cashFlowFromInvesting, cashFlowFromFinancing, cashAndEquivalents, capitalExpenditure（設備投資。原則はCF計算書の有形＋無形の取得、CF計算書から取れない年度は有報の注記（capexSource=note）。投資不動産の取得を含むと分かった年度は capexIncludesInvestmentProperty=true が付く。付かなくても行名が「有形固定資産及び投資不動産の取得」の会社（2120・2811・5411・9158 等）は投資不動産を含む）, depreciationAndAmortization, dividendsPaid, purchaseOfTreasuryShares, proceedsFromDisposalOfTreasuryShares, proceedsFromBorrowings, repaymentOfBorrowings, incomeTaxesPaid [1株] eps, bps, dividendPerShare, dilutedEps [バリュエーション] per, pbr, priceEarningsRatio, priceBookValueRatio, dividendYield [株式] sharesOutstanding, treasuryShares [識別/原典] docId, edinetFilingUrl [その他] numberOfEmployees, researchAndDevelopment, interestExpense, accountingStandard [計算指標] roe, roa, operatingMargin, ordinaryMargin（経常利益率。金融業ではoperatingMarginの代わりにこちらを参照）, netProfitMargin, grossProfitMargin, equityRatio, currentRatio, payoutRatio, doe, fcf, netCash, interestBearingDebt, interestBearingDebtBroad, ibdSource, debtToEquityRatio, operatingCFMargin, fcfMargin, accrualRatio, dso, dio, dpo, cashConversionCycle, assetTurnover, ebitda, ebitdaMargin, sgaRatio, interestCoverageRatio, rdRatio, capexRatio, salesPerEmployee, operatingIncomePerEmployee, operatingCFToDebt, retainedEarningsRatio, goodwillRatio, effectiveTaxRate, totalShareholderReturn, totalReturnRatio, netDebt, netDebtToEbitda, tangibleEquity, tangibleEquityRatio [構造化データ] segments（セグメント別売上・営業利益・経常利益・資産）, directors（役員一覧）, directorRemunerationBreakdown（役員報酬カテゴリ別）, crossShareholdings（政策保有株式銘柄別明細）, crossShareholdingTotalBookValue, crossShareholdingIssuesCount, majorShareholders（大株主上位10名）, foreignShareholdingRatio, individualShareholdingRatio, institutionalShareholdingRatio",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "fiscalYear": {
+            "description": "特定の決算期末日（YYYY-MM-DD）を指定。\"all\" で全年度。省略時は、metrics も省略していれば直近2期（最新期と前期）、metrics を指定していれば全年度",
+            "type": "string"
+          },
+          "includeSplitDetails": {
+            "description": "省略可（既定 false）。true で分割の検算の詳細（splitCheck の items・evidence・howToVerify、splitAdjustment の reason 全文）を返します。既定では splitCheck は要約（splits・adjustedFields・conflict）のみ。検算の食い違い（conflict）があるときは、false でも詳細を返します。数値は変わりません。",
+            "type": [
+              "string",
+              "boolean"
+            ]
+          },
+          "excludeForecast": {
+            "description": "会社業績予想（companyForecast）を含めない場合 true。デフォルトは false（含める）。",
+            "type": [
+              "string",
+              "boolean"
+            ]
+          },
+          "includeTextBlocks": {
+            "description": "指定した有報テキストブロック（plainText）を併せて返します。指定省略時は付与しません（レスポンスサイズ抑制のため）。複数指定可。返却対象は fiscalYear で指定した年度（省略時は最新年度）のみ。利用可能カテゴリ: businessRisk（事業等のリスク）, managementAnalysis（経営者による分析・MD&A）, managementPolicy（経営方針・経営環境）, corporateGovernance（コーポレートガバナンス）, compensation（役員の報酬等・本文）, relatedParty（関係会社等）, subsidiaries（子会社等）, segments（セグメント情報・本文）, humanCapital（人的資本・多様性）, sustainability（サステナビリティ）, crossShareholdings（政策保有株式・本文）, researchAndDevelopment（研究開発活動）, financialNotes（経理の状況・注記）。",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "businessRisk",
+                    "managementAnalysis",
+                    "managementPolicy",
+                    "corporateGovernance",
+                    "compensation",
+                    "relatedParty",
+                    "subsidiaries",
+                    "segments",
+                    "humanCapital",
+                    "sustainability",
+                    "crossShareholdings",
+                    "researchAndDevelopment",
+                    "financialNotes"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "list_edinet_stocks",
+      "description": "利用可能な銘柄の一覧情報（カバレッジ、データソース、参照ガイドURL）を返します。\n\n対象: 東証プライム / スタンダード / グロースの事業会社 約3,700社。\nETF・REIT・投信・TOKYO PRO MARKET は対象外。\n\n※ 本データは情報提供を目的とし、投資助言・推奨ではありません。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_timely_disclosures",
+      "description": "当日または指定日の適時開示（TD-net）一覧を取得します。\ncode を指定して date を省くと、その銘柄の直近30日分を返します（30日以内が5件未満なら、それより前も含めて最新5件まで。応答の period に期間）。\n決算短信・業績修正・配当・自社株買い・M&A・株式分割など全カテゴリを含みます。\n\nデータソース: Yanoshin TDnet WebAPI（東証 TDnet ミラー）。\n各開示には document_url（PDF直リンク）が含まれます。\nnote: 過去日付の指定は Yanoshin API が遡及可能な範囲内。当日分は当日 cron キャッシュ済み。\n\n関連ツール: 銘柄の財務データは get_edinet_financial_data、大量保有は get_large_holdings。\n\nデフォルトは最新200件を返します。特定銘柄の開示を探すときは code、キーワードで探すときは keyword を使ってください。\n\n各開示には categories（カテゴリの配列）が付きます。タイトルから推定したもので、1件が複数のカテゴリを持つことがあります\n（例: 「業績予想の修正（上方修正）及び配当予想の修正（増配）」→ forecast_up と dividend_up）。\ncategory を指定するとそのカテゴリで絞り込めます（複数指定は OR）。forecast / dividend は上方・下方（増配・減配）も、buyback は ToSTNeT-3 等の相対取引（buyback_tostnet）も含みます。\nカテゴリ: earnings=決算 / forecast_up=業績予想の上方修正 / forecast_down=業績予想の下方修正 / forecast=業績予想の修正（方向の記載なし、または項目ごとに方向が割れている／数値未取得） / dividend_up=増配・復配・記念配当 / dividend_down=減配・無配 / dividend=配当の決定・配当予想の修正（方向の記載なし、または数値未取得） / buyback=自社株買い・消却（自己株式・自己投資口の取得） / buyback_tostnet=自社株買い（ToSTNeT-3等の相対取引。市場での買い支えではない） / tob=公開買付け（TOB・MBO） / tob_holder=保有する他社株式の公開買付け（応募・不応募。自社が買い付けられる側ではない） / offering=新株・売出・第三者割当・ストックオプション / treasury_disposal=自己株式の処分（株式報酬・第三者割当・持株会向けなど。放出する側） / stock_compensation=株式報酬・従業員向け株式インセンティブ（譲渡制限付株式・RSU・株式給付信託・ストックオプション） / stock_split=株式分割・株式併合 / medium_term_plan=中期経営計画（策定・修正・見直し・進捗。中長期の経営計画・成長戦略を含む） / executive_change=役員の異動（代表取締役の異動・役員人事・取締役の辞任・執行役員の異動・取締役候補者の選任） / merger=M&A・組織再編（子会社化・株式取得・資本業務提携を含む） / shareholder_benefit=株主優待 / monthly_sales=月次 / large_holding=大量保有 / other=その他\n業績予想・配当予想の修正の方向（forecast_up/down、dividend_up/down）は、XBRL から取り込んだ修正前後の数字で決めます（取り込み済みの開示のみ。\n数字が無い開示はタイトルの文言で判定）。数字とタイトルの方向が食い違うときは数字を優先し、タイトルの方向を revisionDirection.titleDirection に残します（conflict: true）。\n業績の判定は、連結（無ければ個別）の通期の営業利益・経常利益・純利益で行い、全項目が同じ向きなら上方/下方、割れたら方向なし（forecast のまま、revisionDirection.direction=mixed）、\n利益が動かず売上だけ動いたときは売上で決めます。配当は通期（無ければ期末）の1株配当で決め、株式分割に伴う機械的な修正の可能性があるものは決めません。\nrevisionDirection は修正系の開示に付き、direction（up/down/flat/mixed/unknown）と根拠を示します。\ncategoryCounts に、絞り込み前の全件のカテゴリ別件数を返します。\n\ncode を指定した場合のみ、業績予想・配当予想の修正系開示（forecast/dividend系カテゴリ）に\nparsedNumbers（XBRLから取り込んだ修正前後の数値・増減率）を付加します。\nparsedNumbers.earnings[].priorActual は修正開示の参考欄（前期実績）の会社記載値そのままです。参考欄は会社の転記で、\n決算短信と食い違うことがあります（3459: 1口当たり当期純利益の欄に分配金の値。6505 の PDF: 前期 EPS の欄に前々期の値）。\n通期の前期実績には priorActualCheck を添え、同じ年度の決算短信と照合した結果を status で示します\n（consistent=一致 / consistent-after-split=決算期末後の株式分割で書き直した値と一致 / eps-mismatch=純利益は一致するのに EPS だけ食い違う\n＝修正開示側の記載の食い違い。前期 EPS は comparedWith.eps（決算短信）を使ってください / unverifiable=照合できなかった）。\n（全件・keyword検索では数値を付けません。銘柄横断の処理コストを避けるため）\n\n※ 本データは情報提供を目的とし、投資助言・推奨ではありません。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "description": "取得する日付（YYYY-MM-DD）。省略時は当日分を返します。ただし code を指定して省略したときは、その銘柄の直近30日分（少なくとも最新5件）を返します。",
+            "type": "string"
+          },
+          "code": {
+            "description": "証券コードで絞り込みます（例: 7203）。全角・小文字・末尾の .T は正規化して比較します。",
+            "type": "string"
+          },
+          "keyword": {
+            "description": "タイトルまたは会社名の部分一致で絞り込みます。全角半角・ひらがな/カタカナ・大文字小文字の揺れは吸収されます。",
+            "type": "string"
+          },
+          "category": {
+            "description": "カテゴリで絞り込みます（例: \"forecast_up\" や [\"earnings\",\"dividend\"]）。forecast / dividend は上方・下方を含みます。",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "earnings",
+                      "forecast_up",
+                      "forecast_down",
+                      "forecast",
+                      "dividend_up",
+                      "dividend_down",
+                      "dividend",
+                      "buyback",
+                      "buyback_tostnet",
+                      "tob",
+                      "tob_holder",
+                      "offering",
+                      "treasury_disposal",
+                      "stock_compensation",
+                      "stock_split",
+                      "medium_term_plan",
+                      "executive_change",
+                      "merger",
+                      "shareholder_benefit",
+                      "monthly_sales",
+                      "large_holding",
+                      "other"
+                    ]
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "earnings",
+                        "forecast_up",
+                        "forecast_down",
+                        "forecast",
+                        "dividend_up",
+                        "dividend_down",
+                        "dividend",
+                        "buyback",
+                        "buyback_tostnet",
+                        "tob",
+                        "tob_holder",
+                        "offering",
+                        "treasury_disposal",
+                        "stock_compensation",
+                        "stock_split",
+                        "medium_term_plan",
+                        "executive_change",
+                        "merger",
+                        "shareholder_benefit",
+                        "monthly_sales",
+                        "large_holding",
+                        "other"
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "limit": {
+            "description": "返す件数の上限。デフォルト200、最大2000。",
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_large_holdings",
+      "description": "大量保有報告書（5%ルール）のデータを取得します。\n日付指定で当日のイベント一覧、または銘柄コード指定でその銘柄の大量保有履歴を取得できます。\n\nデータソース: EDINET 大量保有報告書（docType 350/370）。\nカバレッジ: 2021-06 以降の全提出を日次バッチで取得・名寄せ済み（投資家ベース）。\n取得項目: 保有者名（名寄せ後）・銘柄コード・保有比率・変動比率・取得資金・保有目的・提出日。\n\n各イベントは以下を含みます:\n  - holdingRatio: 今回の保有比率（%）\n  - previousRatio: 変更前の保有比率（%）。新規保有（初回の5%超）では null\n  - docId / sourceUrl: EDINET 提出書類の原典リンク\n  - filingDate: 提出日 / triggerDate: 報告義務発生日（code 指定時のみ）\n\ncode 指定時の既定: 提出日の新しい順に直近 20 件（totalCount は全件数、returnedCount は返した件数）、保有目的（purpose）は先頭 80 文字＋「…」（purposeTruncated: true）に短縮します。\n全件・全文が必要なときは limit（件数。最大 500）と includeFullPurpose: true を指定してください。date 指定・未指定（直近7日）の一覧は、既定で最大 500 件まで（totalCount は全件数、returnedCount は返した件数）を返し、limit は適用しません。\n\n関連ツール: 投資家ベースのポートフォリオは /investors ページ、\n銘柄ベースの保有変動は本ツール（code 指定）、財務データは get_edinet_financial_data。\n\n応答の metricLabels は英語キー→日本語指標名の対訳です。利用者向けには日本語名（例: holdingRatio→「保有比率」）のほうが伝わりやすくなります。\nデータ品質・値の異常・不具合に触れる場合も同様で、フィールド名を示すときは「発行済株式数（sharesOutstanding）」のように日本語を主・英語キーを括弧内にすると読みやすくなります。\n\n※ 本データは情報提供を目的とし、投資助言・推奨ではありません。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "description": "証券コード（例: 7203）。指定すると銘柄別の大量保有履歴を返します。",
+            "type": "string"
+          },
+          "date": {
+            "description": "日付（YYYY-MM-DD）。指定するとその日の大量保有イベント一覧を返します。省略時は直近7日分を検索。",
+            "type": "string"
+          },
+          "limit": {
+            "description": "省略可。code 指定時に返すイベント数（提出日の新しい順）。既定 20、最大 500。totalCount は常に全件数。",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 500
+              }
+            ]
+          },
+          "includeFullPurpose": {
+            "description": "省略可（既定 false）。true で保有目的（purpose）を全文で返します。既定は先頭 80 文字＋「…」（purposeTruncated: true）。",
+            "type": [
+              "string",
+              "boolean"
+            ]
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "screen_stocks",
+      "description": "全上場企業（約3,700社）の財務データからスクリーニングします。条件に合致する銘柄を返します。\n\n使い分け:\n  - 「バリュー株を探して」「成長株を探して」「高配当株を探して」「業績回復株を探して」など、\n    定型の投資フレームで漠然と探したい場合は screen_by_framework が向いています。\n  - このツール（screen_stocks）は、指標と数値を細かく組み合わせて指定したい場合に使います。\n    例: 「ROE>=20% かつ 自己資本比率>=60% かつ PER<=15」など。\n\nカバレッジ: 東証プライム / スタンダード / グロースの事業会社 約3,700社。\nデータソース: 全銘柄の最新 annual.json を集約した edinet-summary.json（日次更新）。\n\n利用可能な指標（全一覧）: 引数 metric には英語キーを渡してください。\n「キー=日本語名（単位）」の形式です。日本語名で指定しても内部で英語キーに正規化されますが、原則は英語キーを渡してください。\n本番 summary の数値項目をすべて載せています。この一覧に無い指標は使えません。\n  [収益性(%)] roe=ROE（自己資本利益率）, roa=ROA（総資産利益率）, roic=ROIC（投下資本利益率）, operatingMargin=営業利益率（金融業は経常利益率で代替。marginBasis参照）, netProfitMargin=純利益率, grossProfitMargin=売上総利益率, ebitdaMargin=EBITDAマージン, operatingCFMargin=営業CFマージン, fcfMargin=FCFマージン（簡易FCF＝営業CF+投資CF ÷売上高・%。金融業は screen では null）, sgaRatio=販管費率（販管費÷売上高・%）, rdRatio=研究開発費率（研究開発費÷売上高・%）, effectiveTaxRate=実効税率（%）\n  [安全性] equityRatio=自己資本比率, tangibleEquityRatio=有形純資産比率（%）, currentRatio=流動比率, debtToEquityRatio=D/Eレシオ, netDebtToEbitda=ネットD/EBITDA倍率, interestCoverageRatio=インタレスト・カバレッジ・レシオ（営業利益÷支払利息・倍）, retainedEarningsRatio=利益剰余金比率（利益剰余金÷総資産・%）, goodwillRatio=のれん比率（のれん÷総資産・%）, netCashRatio=ネットキャッシュ比率（ネットキャッシュ÷時価総額・倍。% ではない）, ncToAssets=NC/総資産（ネットキャッシュ÷総資産・%）, ncToEquity=NC/自己資本（ネットキャッシュ÷自己資本・%）\n  [還元] payoutRatio=配当性向, doe=DOE（株主資本配当率）, totalReturnRatio=総還元性向, totalShareholderReturn=総還元額（配当+自社株買い・円）, dividendYield=配当利回り, dividendPerShare=1株配当, dividendInterim=1株中間配当（円）, dividendYearEnd=1株期末配当（円）\n  [効率・CF] assetTurnover=総資産回転率, cashConversionCycle=CCC（現金化速度）, operatingCFToDebt=営業CF対有利子負債, capexRatio=設備投資比率（設備投資÷売上高・%）, accrualRatio=アクルーアル比率（(純利益−営業CF)÷総資産・%）, salesPerEmployee=従業員1人あたり売上高（円）, operatingIncomePerEmployee=従業員1人あたり営業利益（円）\n  [割安・バリュエーション] per=PER（株価収益率）, pbr=PBR（株価純資産倍率）, psr=PSR（株価売上高倍率）, evToEbitda=EV/EBITDA, pegRatio=PEGレシオ（PER÷EPS成長率。PER>0かつ成長率>0の会社のみ・倍）, ncav=NCAV（流動資産−負債合計・円）, ncavRatio=NCAV比率（NCAV÷時価総額・倍。1以上でグレアム基準）, fcfYield=簡易FCF利回り（簡易FCF＝営業CF+投資CF ÷時価総額・%。金融業は営業CFに預り金等が入るため null。土地・事業・有価証券の売却入金で一時的に跳ねるので、極端に高い会社は投資CFの中身を確認し、oneOffSuspected も見ること）, earningsYield=益回り（100÷PER・%）, marketEv=EV（時価総額+有利子負債−現金・円。EV/EBITDA×EBITDAからの概算。理論企業価値 enterpriseValue とは別）, marketCap=時価総額, eps=EPS（1株利益）, bps=BPS（1株純資産）, tsrCurrent=TSR（株主総利回り・5年間の累積倍率）\n  [規模・絶対値] netSales=売上高, operatingIncome=営業利益, ordinaryIncome=経常利益（IFRS・米国基準は税引前利益）, netIncome=当期純利益, totalAssets=総資産, equity=自己資本, tangibleEquity=有形純資産（円）, currentAssets=流動資産（円）, totalLiabilities=負債合計（円）, investmentSecurities=投資有価証券（円）, netCash=ネットキャッシュ, netDebt=ネット有利子負債, interestBearingDebt=有利子負債, ebitda=EBITDA, cashFlowFromOperations=営業キャッシュフロー（円）, fcf=簡易フリーキャッシュフロー（営業CF+投資CF）\n  [成長性(%)・連続年数] salesGrowth=売上成長率, operatingIncomeGrowth=営業利益成長率（%）, netIncomeGrowth=純利益成長率（%）, epsGrowth=EPS成長率, salesCagr3y=売上高の3年平均成長率（CAGR・%）, operatingIncomeCagr3y=営業利益の3年平均成長率（CAGR・%）, netIncomeCagr3y=純利益の3年平均成長率（CAGR・%）, epsCagr3y=EPSの3年平均成長率（CAGR・分割調整後・%）, salesPerEmployeeGrowth=従業員1人あたり売上高の成長率（%）, operatingIncomePerEmployeeGrowth=従業員1人あたり営業利益の成長率（%）, consecutiveSalesGrowthYears=連続増収年数, consecutiveOpGrowthYears=連続増益年数, consecutiveDividendGrowthYears=連続増配年数, totalYears=収録している決算年数\n  [前期の値] prevNetSales=前期の売上高, prevOperatingIncome=前期の営業利益, prevOrdinaryIncome=前期の経常利益（IFRS・米国基準は税引前利益）, prevNetIncome=前期の純利益, prevEps=前期のEPS, prevRoe=前期のROE, prevRoa=前期のROA, prevOperatingMargin=前期の営業利益率, prevEquityRatio=前期の自己資本比率\n  [株式・株主] sharesOutstanding=発行済株式数, treasuryShares=自己株式数, issuedSharesTotal=発行済株式総数（議決権ベース）, shareCountChange5y=株数の5年変化率（自己株式を除く発行済株式数・分割調整後・%。マイナス＝自社株買い・消却で減少、プラス＝増資・新株予約権等で増加）, shareCountChange10y=株数の10年変化率（自己株式を除く発行済株式数・分割調整後・%。マイナス＝減少、プラス＝増加）, foreignShareholdingRatio=外国人持株比率, institutionalShareholdingRatio=機関投資家持株比率, auditFeesTotal=監査報酬合計（円）\n  [独自スコア(0-100)] scoreTotal=総合スコア, scoreValuation=割安度スコア, scoreProfitability=稼ぐ力スコア, scoreGrowth=成長性スコア, scoreSafety=安全性スコア, scoreShareholderReturn=還元力スコア, scoreMoat=事業独占力スコア, scoreValuationCoverage=割安度スコアの算出できた指標の割合（0-1。1未満は一部欠測）, scoreSafetyCoverage=安全性スコアの算出できた指標の割合（0-1）\n  [理想株価モデル] alphaPct=α値（%）, upperAlphaPct=上値α値（%）, idealPriceLow=理想株価（下値）, idealPriceMid=理想株価（中央値）, idealPriceHigh=理想株価（上値）, pseudoPrice=擬似現在株価, pseudoPriceAgeMonths=擬似株価の基準日からの経過月数, assetValue=資産価値（1株あたり・円）, businessValue=事業価値（1株あたり・円）, growthValue=成長価値（1株あたり・円）, dividendValue=配当価値（1株あたり・円）, excessCashValue=超過現金価値（1株あたり・円）, epsAnchor=採用EPS（アンカー）, forecastEps=予想EPS, effectiveMultiple=実効倍率（キャップ後）\n  ※ 金額は円、%と書いた比率は 15.2=15.2%、「倍」は倍率。foreignShareholdingRatio / institutionalShareholdingRatio だけ 0-1 表記（下記）。\n  ※ fields に指定するだけで条件にせず値を見ることもできます。verdict（5段階判定）は専用パラメータで指定します。\n\n使用例: 「総合スコア80以上×割安以下」= conditions: [{metric: \"scoreTotal\", operator: \">=\", value: 80}] + verdict: [\"超割安\", \"割安\"]\n\n注意:\n  - 会計基準が異なる銘柄（IFRS / USGAAP）は数値の比較に留意（特に営業利益・有利子負債）。\n  - USGAAP 連結 XBRL 不開示銘柄（オリックス等）は interestBearingDebt = null。\n  - 【重要】foreignShareholdingRatio / institutionalShareholdingRatio は 0-1 表記です\n    （例: 22.8% の場合は 0.228 として保存されています）。roe や equityRatio 等の他の指標は\n    % 表記（例: 15.2 = 15.2%）なので単位が異なります。「外国人持株比率30%以上」を条件にする場合、\n    value: 30 ではなく value: 0.3 を指定してください。value: 30 を指定すると、\n    エラーにはならず該当銘柄が0件（または比較演算子によっては意図せず全件）になります。\n  - institutionalShareholdingRatio は金融機関（信託銀行・保険会社等）のみの比率で、\n    証券会社・事業法人（政策保有株主）を含まない狭い定義です。\n  - 条件に使った指標が null の銘柄は自動的に除外されます（例: 保険業は netSales が null）。\n  - 金融業（銀行・証券・保険・その他金融）は営業CFに預り金等が入るため、fcfYield（FCF利回り）・fcf・fcfMargin は null にしています（FCF系の条件・並べ替えで金融業は出ません）。\n  - fcfYield（簡易FCF＝営業CF+投資CF）は土地・事業・有価証券の売却の入金で一時的に跳ねます。利回りが極端に高い会社（100%超など）は投資CFの中身を確認し、上位を見るときは oneOffSuspected も見てください。\n  - shareCountChange5y / shareCountChange10y（株数の5年・10年変化率、%）は、自己株式を除く発行済株式数を株式分割・併合で調整して比べた値です。\n    マイナス＝自社株買い・消却で株数が減った、プラス＝増資・新株予約権の行使・株式交換などで増えた（希薄化）。例: 自社株買いで株数を減らしている会社は conditions: [{metric: \"shareCountChange5y\", operator: \"<=\", value: -5}]。\n    5年（10年）前の年度が無い・決算期変更をまたぐ・分割調整できない会社は null（条件に使うと除外）。10年前の年度は自己株式数の記載が無いため、多くの会社で 純資産÷BPS から株数を推定しています。\n  - operator「==」は厳密一致のため小数値の指標ではほぼヒットしません。範囲指定は >= と <= を組み合わせてください。\n  - ヒット数が limit を超えた場合は結果ヘッダーに総ヒット数が表示されます。切れている場合は offset で続きを取得できます（例: limit=100, offset=100 で101〜200件目）。\n  - 単一銘柄の詳細は get_edinet_financial_data、開示は get_timely_disclosures。\n  - scores / verdict / alphaPct はラジ株ナビ独自算出値（日次バッチ更新）。\n  - 【重要】dividendYield / dividendPerShare は有報の「当期確定実績」ベースです。\n    来期の会社予想配当ではありません。分母も市場株価ではなく擬似株価（PER×EPS）です。\n    記念配当・特別配当を含む年度では実績利回りが跳ね上がり、来期予想とは大きく乖離します\n    （例: 7463 アドヴァンは実績100円で利回り10.89%だが、来期予想は40円）。\n    高配当スクリーニングの結果は実績ベースの値です。個別銘柄の来期予想は get_earnings_forecast または\n    get_edinet_financial_data の companyForecast で確認できます。\n  - verdict フィルタは決算時点の擬似現価（pseudoPrice）ベースの理想株価モデル判定であり、\n    市場株価との比較ではありません。verdict 指定時は各行に pseudoPriceFiscalYearEnd\n    （判定の基準となった決算期末日）を併記します。割安/割高はこの基準日時点の判定です。\n    verdictBasisType=\"asset_floor\" の行は、理論株価の中央値が下支え（資産価値の7割）に張り付いており、判定（割高・超割高だけ）は\n    資産価値の7割との比較で決まっています。利益から見るとさらに割高寄りです。下支えの会社で割安・超割安・適正になる会社、\n    金融4業種、有報より新しい決算短信が出ていて有報待ちの会社は verdict が無い（判定を出していない）ため、verdict フィルタには掛かりません。\n  - 【重要】sort.metric に alphaPct（α値）または upperAlphaPct を指定した場合、擬似現価の\n    鮮度（pseudoPriceFreshness）で並び替えを補正します。stale（決算から7-12ヶ月経過）/\n    obsolete（13ヶ月超）の銘柄は、α値がどれだけ高くても同ランク内の下位に降格されます\n    （除外はされません。件数・フィルタ結果は変わらず並び順だけが変わります）。\n    3月決算企業が9月前後にほぼ全社該当する aging（4-6ヶ月）は降格しません。\n    この場合、各行に pseudoPriceFreshness / pseudoPriceAgeMonths を併記します（順位が低い理由が鮮度のことがあります）。\n  - oneOffSuspected: true の銘柄は特別損益で純利益・EPS・PER・理論株価・スコアが嵩上げされている可能性があります。\n    特別損益は get_edinet_financial_data で確認できます。\n\n応答の metricLabels は英語キー→日本語指標名の対訳です。利用者向けには日本語名（例: roe→「ROE（自己資本利益率）」）のほうが伝わりやすくなります。\nデータ品質・値の異常・不具合に触れる場合も同様で、フィールド名を示すときは「発行済株式数（sharesOutstanding）」のように日本語を主・英語キーを括弧内にすると読みやすくなります。\n（出力は { metricLabels, results } 形式。銘柄配列は results に入ります）\n\n※ 本データは情報提供を目的とし、投資助言・推奨ではありません。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "conditions": {
+            "description": "スクリーニング条件の配列（AND条件。最大20件）",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "metric": {
+                      "type": "string",
+                      "description": "指標の英語キー名（例: roe, operatingMargin, equityRatio, salesGrowth, netCash, fcf, dividendPerShare, dividendYield, payoutRatio, marketCap, evToEbitda, priceEarningsRatio）。日本語名や略語（例: 「自己資本比率」「PER」）は内部で英語キーに正規化されますが、原則は英語キーを推奨。"
+                    },
+                    "operator": {
+                      "type": "string",
+                      "enum": [
+                        ">=",
+                        "<=",
+                        ">",
+                        "<",
+                        "=="
+                      ],
+                      "description": "比較演算子"
+                    },
+                    "value": {
+                      "description": "比較値",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "metric",
+                    "operator",
+                    "value"
+                  ]
+                }
+              }
+            ]
+          },
+          "sort": {
+            "description": "結果のソート（省略時はROE降順）。metric に alphaPct/upperAlphaPct を指定した場合、擬似現価の鮮度が古い銘柄（stale/obsolete）は同ランク内の下位に自動で降格されます（除外はされません）。",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "metric": {
+                    "type": "string",
+                    "description": "ソート指標名"
+                  },
+                  "order": {
+                    "type": "string",
+                    "enum": [
+                      "asc",
+                      "desc"
+                    ],
+                    "description": "昇順/降順"
+                  }
+                },
+                "required": [
+                  "metric",
+                  "order"
+                ]
+              }
+            ]
+          },
+          "limit": {
+            "description": "返す件数の上限（デフォルト: 30、最大: 100）",
+            "type": [
+              "string",
+              "number"
+            ]
+          },
+          "offset": {
+            "description": "スキップする件数（ページング用。例: limit=100, offset=100 で101〜200件目）",
+            "type": [
+              "string",
+              "number"
+            ]
+          },
+          "sector": {
+            "description": "業種で絞り込み（例: 情報・通信業。中黒の全角/半角どちらでも可）",
+            "type": "string"
+          },
+          "market": {
+            "description": "市場で絞り込み（例: プライム）",
+            "type": "string"
+          },
+          "fields": {
+            "description": "結果に追加で含めたい指標キーの配列（例: [\"roe\", \"marketCap\"]）。条件・ソートで使った指標と基本情報は自動で含まれます。最大50件。",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "verdict": {
+            "description": "理想株価モデルの5段階判定でフィルタ（複数指定=OR）。例: [\"超割安\", \"割安\"]",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "超割安",
+                    "割安",
+                    "適正",
+                    "割高",
+                    "超割高"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "required": [
+          "conditions"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "screen_by_framework",
+      "description": "4つの投資フレーム（成長株 / 高配当株 / バリュー株 / 業績回復株）別に、\n条件に合致する銘柄を最大100社まで返します。\n\nこのツールが向いている質問例（自然文 → framework マッピング）:\n  - 「バリュー株を探して」「割安株を教えて」「割安な銘柄は？」「PERが低い銘柄」 → framework=value\n  - 「成長株を探して」「グロース株を教えて」「伸びてる会社」「業績が伸びてる銘柄」 → framework=growth\n  - 「高配当株を探して」「配当狙いの銘柄」「インカム株」「利回りが高い銘柄」 → framework=high_dividend\n  - 「業績回復株を探して」「ターンアラウンド銘柄」「復活しそうな会社」「最近よくなってる銘柄」 → framework=turnaround\n  - 「おすすめ銘柄」「初心者向け銘柄」「いい銘柄ない？」など漠然とした質問でも、\n    まず value / growth / high_dividend のどれかで候補を出すと話が進みます。\n\n「銘柄を知らない初心者が、まず候補を絞り込む」用途を想定しています。\n個別銘柄の深掘りには get_edinet_financial_data（財務）・get_ideal_price（理想株価レンジ）・get_stock_score（スコア）があります。\n指標を細かく指定したい場合（例: ROE>=20% AND 自己資本比率>=60%）は screen_stocks が向いています。\n\nフレームと判定基準（tier=\"good\"）※ 形式: 英語キー（日本語名）:\n  - growth (成長株):\n      salesGrowth（売上成長率）>=15% AND operatingMargin（営業利益率）>=15%\n      AND roe（ROE）>=15% AND 2年連続増収（consecutiveSalesGrowthYears>=2）\n  - high_dividend (高配当株):\n      dividendYield（配当利回り）>=4% AND payoutRatio（配当性向）<=50%\n      AND doe（DOE / 株主資本配当率）>=3% AND equityRatio（自己資本比率）>=40%\n  - value (バリュー株):\n      per（PER / priceEarningsRatio）<=10 AND pbr（PBR / priceBookValueRatio）<=1.0\n      AND roe（ROE）>=10%\n  - turnaround (業績回復株):\n      salesGrowth（売上成長率）>=10% AND 営業利益率改善（operatingMargin 前期比）>=5pt\n\ntier=\"ok\" は基準を 1 段階緩和します:\n  - growth: salesGrowth（売上成長率）>=5%, operatingMargin（営業利益率）>=8%, roe（ROE）>=8%（連続増収条件なし）\n  - high_dividend: dividendYield（配当利回り）>=2.5%, payoutRatio（配当性向）<=70%, doe>=2%, equityRatio（自己資本比率）>=20%\n  - value: per（PER）<=15, pbr（PBR）<=1.5, roe（ROE）>=5%\n  - turnaround: salesGrowth（売上成長率）>=0%, 営業利益率改善>=2pt\n\n注意: 金融業（銀行・証券・保険・その他金融）は営業CFに預り金等が入るため、FCF利回り等のFCF系指標は出していません（このツールの判定基準には FCF 系は含まれません）。\n\nデータソース: 全銘柄の最新 annual.json を集約した edinet-summary.json（日次更新）。\nカバレッジ: 東証プライム / スタンダード / グロースの事業会社 約3,700社。\n\n注意:\n  - 会計基準の違い（IFRS/USGAAP）で営業利益率の絶対値は厳密比較不可。\n  - 「セグメント成長」「上方修正履歴」「Q1進捗率」は summary に無いため判定対象外です。\n  - oneOffSuspected: true の銘柄は特別損益で純利益・EPS・PER・理論株価・スコアが嵩上げされている可能性があります。\n    特別損益は get_edinet_financial_data で確認できます。\n\n応答の metricLabels は英語キー→日本語指標名の対訳です。利用者向けには日本語名（例: roe→「ROE（自己資本利益率）」）のほうが伝わりやすくなります。\nデータ品質・値の異常・不具合に触れる場合も同様で、フィールド名を示すときは「発行済株式数（sharesOutstanding）」のように日本語を主・英語キーを括弧内にすると読みやすくなります。\n（出力は { metricLabels, results } 形式。銘柄配列は results に入ります）\n\n※ 本データは情報提供を目的とし、投資助言・推奨ではありません。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "framework": {
+            "type": "string",
+            "enum": [
+              "growth",
+              "high_dividend",
+              "value",
+              "turnaround"
+            ],
+            "description": "投資フレーム種別。growth=成長株（売上成長・利益率重視）/ high_dividend=高配当株（配当利回り重視）/ value=バリュー株（PER・PBR重視）/ turnaround=業績回復株（利益率改善重視）。自然文の対応: 「成長株/グロース」→growth、「割安株/バリュー/PERが低い」→value、「高配当/インカム/利回り重視」→high_dividend、「業績回復/ターンアラウンド」→turnaround。"
+          },
+          "tier": {
+            "description": "判定基準の厳しさ。good=厳しい基準（例: growthならROE>=15%、valueならPER<=10）/ ok=緩和基準（例: growthならROE>=8%、valueならPER<=15）。デフォルト: good。「初心者向け」「ゆるく」と言われたら ok を選ぶ。",
+            "type": "string",
+            "enum": [
+              "good",
+              "ok"
+            ]
+          },
+          "limit": {
+            "description": "返す件数の上限（デフォルト: 30、最大: 100）",
+            "type": [
+              "string",
+              "number"
+            ]
+          },
+          "sector": {
+            "description": "業種で絞り込み（例: 情報・通信業。中黒の全角/半角どちらでも可）",
+            "type": "string"
+          },
+          "market": {
+            "description": "市場で絞り込み（例: プライム）",
+            "type": "string"
+          }
+        },
+        "required": [
+          "framework"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_earnings_forecast",
+      "description": "銘柄コード指定で、TDnet 決算短信から抽出した会社予想（来期業績・配当予想）を取得します。\n当期実績（速報）、前期実績、来期予想、配当予想、サプライズ判定を含みます。\n\nデータソース: TDnet 決算短信 XBRL を日次バッチで自動パース。\nカバレッジ: 決算短信を提出した全上場企業（決算発表日翌日に反映）。\n\n取得項目:\n  - actual:  当期実績速報（売上・営業利益・経常利益・純利益・EPS・総資産・純資産・CF・ROE・総資産経常利益率など）\n  - prior:   前期実績\n    ※ ordinaryIncome は IFRS・米国基準（accountingStandard が IFRS / USGAAP）の会社では経常利益ではなく税引前利益です。\n  - forecast: 来期予想（数値 / レンジ上下限 / 前期比 %）\n    period 省略時、最新の予想年度に点の予想EPS・純利益が無ければ前の年度（終わった期）の予想は返さず、forecastStatus（range=レンジのみ / none=予想なし）と forecastStatusNote を付けます。\n  - dividend: 配当（当期実績、来期予想、中間/期末/年間）\n    特別配当・記念配当の内訳（決算短信の配当の注記から読み取り。読めない・言及が無いときはフィールド自体が無い）:\n      dividend.actualSpecial（actualAnnual のうち）/ priorSpecial（priorAnnual のうち）/ forecastSpecial（forecastAnnual のうち）。\n      普通配当＝actualAnnual − actualSpecial（予想は forecastAnnual − forecastSpecial）。\n      増配幅を見るときは普通配当どうしで比べてください（特別配当を含む合計どうしだと増配幅を見誤ります）。\n      フィールドが無いことは「特別配当が無い」ことを保証しません（注記を読めなかった場合も無くなります）。\n      予想を四半期短信から採った場合、年度短信の注記に内訳が無くても、四半期短信の注記にある前期の内訳を\n      同じ年度・同じ年間配当のときに限り actualSpecial に引き継ぎます。\n      短信から読めない場合は、同じ年度の有価証券報告書「配当政策」の記載で補うことがあります\n      （年間配当が actualAnnual と一致するときのみ。補ったときは actualSpecialSource が付きます）。\n      有報に期末分しか書かれておらず中間配当の内訳が読めない会社は actualSpecial を埋めず、\n      actualSpecialSource.yearEndSpecial（期末分）だけを返します（actualSpecialFilled: false）。\n    前期中に株式分割があり短信が前期の年間配当を「－」と記載している場合、dividend.priorAnnual は有報「剰余金の配当」の\n    決議から分割後の株数基準にそろえて作った値です（priorAnnualSource が付きます。検算できないときは null のまま）。\n  - surprise: 前期実績対比の増減判定（業績・配当）\n\n【予想の鮮度について】(2026-09-22)\n  period 省略時は「開示日が最新の決算短信」から通期予想を返します。\n  通期予想の修正は四半期短信で開示されるため、年度短信だけを見ると\n  数ヶ月前の古い予想になります（実測: 304社で予想純利益が変わっており、\n  うち63社は50%超の乖離。開示日差の中央値は86日）。\n  四半期短信から採った場合は forecastSource に採用した期と開示日を付与します。\n  このとき actual・prior・surprise・配当の実績/前期・fiscalYearEnd は**年度短信（通期）**のままで、\n  予想（forecast・forecastH1・dividend.forecast*）だけが四半期短信の最新値です。\n  prior が前年同四半期になったり、surprise が四半期同士の比較になったりはしません。\n  四半期累計の実績は quarterlyCumulative に別フィールドで入ります（ライト以上）。\n  ただし年度（通期）の決算短信が保存されていない銘柄（annualActualUnavailable が付く）では、\n  actual・prior・surprise.earnings・配当の実績/前期・fiscalYearEnd を null で返します（四半期累計を通期実績として返さないため）。\n  このとき四半期短信の累計期間の末日は quarterlyPeriodEnd、年度の期末日は nextFiscalYearEnd です。\n  disclosedDate は短信が最初に開示された日です。期中レビューの完了に伴って同じ短信が再開示された場合は\n  reviewCompletion（再開示の日付・tdnetId）を添えます。contentChanged=true のときだけ中身が変わっており、\n  disclosedDate も再開示の日付です（元の短信は originalDisclosedDate）。\n\n【quarterlyCumulative.bps について】(2026-09-26)\n  四半期短信のサマリーXBRLには1株純資産（BPS）タグ自体が無いことがあります\n  （本番実測: 四半期短信全体で約80%が欠落。q1 79%・q2 89%・q3 90%）。その場合、\n  equity ÷ (sharesOutstanding − treasuryShares) から算出した値を bps に補完し、\n  bpsSource: 'derived' を付与します。\n  優先株・種類株のある会社では、equity に優先株主帰属分が含まれるため補完値が\n  過大になることがあります。直近年度の開示済みBPSと比較して比率が0.5〜2.0倍の\n  範囲を外れる場合は信頼できないため補完しません（bps は null のまま、\n  bpsSourceNote にその旨を記載）。\n  ROE / ROA は補完しません。四半期短信の同タグは3/6/9ヶ月の累計利益をそのまま使うため\n  年率ではなく、通期短信のROE/ROAと単純比較できないためです。\n\nperiod 引数:\n  - 省略時: 開示日が最新の短信から通期予想（Freeプランでも利用可能）\n  - annual: 年度決算短信を明示指定（Freeプランでも利用可能）\n  - q1 / q2 / q3: 四半期決算短信（ライトプラン以上限定。Free プランで指定すると\n    制限メッセージが返り取得できません）\n\n注意:\n  - surprise はアナリスト予想（コンセンサス）との比較ではありません。\n    本サービスはコンセンサスデータを保有していません。\n    surprise.earnings[].changePercent は「当期実績 vs 前期実績」の増減率（±5%超で positive/negative）、\n    surprise.dividend は actualVsPrior（当期実績 vs 前期実績）と\n    forecastVsActual（来期予想 vs 当期実績）です。年間配当の合計（特別配当・記念配当を含む）どうしの比較です。\n    「市場予想を上回った/下回った」という表現は使わないでください。\n  - 受注高・受注残などの業種固有の指標は XBRL 標準タグ外のため含まれません。\n  - 決算短信の訂正開示: corrections がある場合は訂正を反映済みです（correctedFrom が訂正前の値、\n    キーは 'actual.cashFlowFromOperations' のようなパス）。correctionNotices がある場合は訂正開示が\n    出ていますが数値は反映していません（PDF のみの訂正・XBRL を読めなかった等）。correctionNote に要約があります。\n    予想を四半期短信から採った場合、その短信の訂正は forecastCorrectionNote に載ります。\n  - actual / prior に netSalesSource: 'edinet-annual' がある場合、その netSales は短信から読めなかったため、有価証券報告書の同じ決算期の売上で埋めた値です（netSalesSourceDocId が有報の docId。短信の開示値ではありません）。\n  - 会社予想が未開示の場合、forecast.netSales 等は null になります。\n  - forecastPeriodMonths は来期予想の対象期間（月数）です。通常は 12。\n    直近の予想が四半期短信（q1/q2/q3）から採用され、かつ直近の確定年度決算が\n    見つからない等の理由で判定できないときは null になります\n    （null は「変則決算ではない」ことを意味しません。判定不能です）。\n    四半期短信から採用した予想は、決算期変更等で対象期間が12ヶ月以外になることが\n    あります（四半期短信の通期予想が常に12ヶ月分とは限りません）。\n  - 決算期変更による変則決算（12ヶ月以外）の場合、年度短信（annual）採用時は\n    irregularPeriod が付きます。このとき forecast.* は変則期間分の値なので、\n    前期比・PER・利回りを論じる際は irregularPeriod.forecastAnnualized\n    （年換算値）が比較に使えます。変則決算に気づかず前期と単純比較すると\n    大幅な減収減益に見えます。\n  - forecastPeriodNote が含まれる場合、四半期短信採用時に forecastPeriodMonths が\n    12以外と判定されています。この場合は年換算していません（四半期短信の通期予想を\n    書き換えると開示値と食い違うため）。前期比較の際は forecastPeriodMonths を\n    確認してください。\n  - 過去実績の体系的なデータは get_edinet_financial_data（有報ベース、過去10年分）にあります。\n  - period 省略時の配当予想（dividend.forecast*）は、最新の予想年度で開示日が最も新しい短信から読みます（予想EPSなどの業績予想と別の短信のことがあります）。年間が空欄で期末の予想がある短信は、中間（実績または予想）と期末を分割後の株数に揃えて足した値を forecastAnnual にします。どちらの場合も dividendForecastSource に出所を載せます。\n  - dividend.forecastYearPaid（period 省略時・ライトプラン以上）: 予想の年度に既に支払った中間配当（四半期短信の実績欄、分割後の株数に揃えた値。{ q1, q2, q3 }）。支払済みの四半期は短信で予想の列から実績の列に移るため dividend.forecastQ1〜Q3 には入りません。\n  - excludedDividendDecisions（newerDisclosureWarning / newerDisclosureCheck 内）は、「剰余金の配当」\n    （配当の決定）のうち、採用した短信の期末の次の四半期末より前に出たため短信に載っている実績配当の\n    決定とみなし、修正の候補から外した開示です（特別配当・方針変更・基準日設定などを含む表題は外しません）。\n  - newerDisclosureWarning が含まれる場合、採用した決算短信より後に「配当予想の修正」\n    「業績予想の修正」等の適時開示が別途出ています。forecast/dividend の数値はまだ\n    その修正を反映していません（本ツールは決算短信ベースのため）。該当開示は\n    get_timely_disclosures で確認できます。possibleSplitDrivenRevision が付いた\n    開示は株式分割に伴う機械的な配当予想の修正の可能性があり、実質的な増減配とは\n    限りません。disclosures[].parsedNumbers が付いている場合、その開示のXBRLから\n    修正前後の数値（previous/current、増減率）を取り込み済みです（無い場合はXBRL未取得\n    またはパース対象外）。\n  - latestRevision が含まれる場合、newerDisclosureWarning で検出した開示（採用した決算短信\n    より後のもの）のうち、業績修正・配当修正それぞれ最新の修正後の数値です\n    （業績と配当が別開示のことがあるため独立に選んでいます）。latestRevision.earnings は配列で、\n    連結・個別や対象期間ごとに別開示から選ばれることがあります（同時刻に連結業績修正と\n    個別業績修正が別開示で出るケース等）。forecast / dividend.forecastAnnual 等の\n    既存フィールドは決算短信ベースの値のまま維持しており、latestRevision の値で\n    置き換えていません。この数値は決算短信本体ほど検証されておらず、\n    XBRLタグの解釈に会社ごとの癖がある（例: 一部企業がOperatingRevenuesタグを\n    営業利益の意味で使う等）ため、重要な判断には該当開示のPDF本文での確認が必要です。\n    latestRevision.earnings[].data.priorActual は修正開示の参考欄（前期実績）の会社記載値そのままで、\n    決算短信と食い違うことがあります。通期のものには priorActualCheck（同じ年度の決算短信との照合結果）を添えます。\n    status=eps-mismatch は純利益が一致するのに EPS だけ食い違う（修正開示側の記載の食い違い）ことを示し、\n    前期の EPS は priorActualCheck.comparedWith.eps（決算短信）を使ってください。\n  - sameDayRevision が含まれる場合、採用した決算短信と同じ日に業績予想・配当予想の修正開示が出ています。\n    summary に修正前後の値（修正前の値が取れないときはその旨）を載せ、parsedNumbers に修正前後・増減率の\n    元の値、revisionDirection に上方/下方の方向を載せます。短信の forecast / dividend がこの修正後の値と\n    一致するかは判定していません。\n  - newerDisclosureCheck は上の検出処理が実際にどこまで確認できたかを示します。\n    status:no-newer-revision なら保存済み開示データの範囲内（checkedFrom〜checkedTo）で\n    修正は見つかりませんでした。status:unverifiable なら検証できていません\n    （reason を参照。適時開示キャッシュの保存開始日より前の短信を採用した場合等）。\n    unverifiable は「修正が無い」ことを意味しません。\n  - dataProvenance が 'legacy-bulk' の場合、このレコードは2026-05-07に一括生成\n    された古いデータです（TDnetパイプラインの通常経路ではなく、tdnetId が空）。\n    surprise.earnings はパース時と同じ式で読み出し時に再計算していますが、\n    surprise.earningsNote がある場合は再計算していません（前期の会計基準が\n    実際と異なる等の理由。reasonを参照）。priorBasisMismatch が含まれる場合、\n    前期実績（prior）が組み替え後の値ではない可能性があります。staleAnnual が\n    含まれる場合、決算期末から長期間経過しており、このレコードが更新されていない\n    可能性があります。\n    このレコードの disclosedDate は年度短信の開示日とは限りません（一括生成時点の最新の開示の日付が入っている例がある）。\n    disclosedDateCheck.status が likely-not-annual-tanshin（決算期末から90日超）なら年度短信の日付ではない可能性が高く、\n    unverified なら未確認です。actualSource（予想を四半期短信から採った場合）では、likely-not-annual-tanshin のとき\n    disclosedDate を null にし、記録値を recordedDisclosedDate に分けています。actualSource.tdnetId が null なのは\n    元の短信が特定できないためです（実績の数値は有報の同じ決算期の値で作り直し済み）。\n  - period に q1/q2/q3 を明示指定した場合、fiscalYearEnd はその四半期の累計期間の\n    末日（例: q1なら6/30）であり、年度の決算期末日ではありません。年度の決算期末日は\n    nextFiscalYearEnd を参照してください（fiscalYearEndNote に同内容を付与します）。\n\n【ordinaryIncomeToTotalAssets（総資産経常利益率）について】(2026-10-02)\n  actual / prior / quarterlyCumulative の ordinaryIncomeToTotalAssets は決算短信サマリーの記載値で、\n  経常利益 ÷ 総資産（原則 期首・期末平均）の % です。IFRS・米国基準は経常利益が無いため税引前利益ベースです\n  （ordinaryIncomeToTotalAssetsBasis: ordinaryIncome=経常利益 / profitBeforeTax=税引前利益）。\n  get_edinet_financial_data の roa（ROA＝純利益 ÷ 期末総資産、有報ベース）とは別の指標なので、\n  ROA として比較・言い換えしないでください。純利益ベースの ROA が必要なら netIncome ÷ totalAssets で計算できます。\n  tdnetId が空の古い一括レコード（dataProvenance あり）はこの値を返しません\n  （保存値が短信の記載値ではなく純利益 ÷ 期末総資産の計算値のため）。\n\n【roe（ROE）の定義について】(2026-10-10)\n  actual / prior の roe は決算短信サマリーの「自己資本当期純利益率」で、純利益 ÷ 期首・期末平均の自己資本の % です\n  （roeBasis: averageEquity）。get_edinet_financial_data の fiscalYears の roe（有報）も同じ定義にそろえています\n  （有報の記載値。roeBasis: reported / averageEquity）。\n  tdnetId が空の古い一括レコードは期末ベースの計算値です（roeBasis: periodEndEquity）。\n  決算期が6か月の REIT は、その期間の率（年換算していない）です。\n\n応答の metricLabels は英語キー→日本語指標名の対訳です。利用者向けには日本語名（例: roe→「ROE（自己資本利益率）」。roeBasis が averageEquity なら「期首・期末平均の自己資本ベース」と添える）のほうが伝わりやすくなります。\nデータ品質・値の異常・不具合に触れる場合も同様で、フィールド名を示すときは「発行済株式数（sharesOutstanding）」のように日本語を主・英語キーを括弧内にすると読みやすくなります。\n\nsplitCheck（分割履歴がある会社のみ）: 既定は要約（splits・adjustedFields・conflict）のみ。詳細は includeSplitDetails: true で、1株あたりの値ごとに raw（短信・有報の記載値）・adjusted（使った値）・factor・basis・method と、検算の材料（純利益÷EPSで逆算した株数と分割前の株数の比）を載せます。adjusted が検算と食い違う（conflict: true 等）ときは raw を基に判断してください。\n\n※ 本データは情報提供を目的とし、投資助言・推奨ではありません。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "証券コード（例: 6264 = マルマエ）"
+          },
+          "period": {
+            "description": "決算期間。**省略時は開示日が最新の短信から通期予想を返します**（通期予想の修正は四半期短信で開示されるため、annual固定だと古い予想になる）。q1/q2/q3 を明示指定するとその期の短信を返します（ライトプラン以上限定）。",
+            "type": "string",
+            "enum": [
+              "annual",
+              "q1",
+              "q2",
+              "q3"
+            ]
+          },
+          "includeSplitDetails": {
+            "description": "省略可（既定 false）。true で分割の検算の詳細（splitCheck の items・evidence・howToVerify、splitAdjustment の reason 全文）を返します。既定では splitCheck は要約（splits・adjustedFields・conflict）のみ。検算の食い違い（conflict）があるときは、false でも詳細を返します。数値は変わりません。",
+            "type": [
+              "string",
+              "boolean"
+            ]
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_stock_score",
+      "description": "銘柄コードを指定して、ラジ株ナビ独自の6軸スコア（0〜100）と理想株価の要約を取得します。\nスコアは EDINET 有報の過去最大10期分の財務データ（annual.json）から動的に算出されます。\n理想株価の要約・スコアに株主優待は含めません（優待制度がある銘柄には caveats で知らせます）。\n\n【関連ツール】「○○を分析して」のような総合的な分析には get_stock_analysis が便利です（財務・理想株価・6軸スコア・DCF・業種比較・会社予想を1回でまとめて返します。返したセクションの数ぶん、最大6回分の利用回数を使います）。\nこのツールは、全年度・内訳・注意事項の全文など、個別の深掘りに向いています。\n割安/割高を見る材料は get_edinet_financial_data（財務）・get_ideal_price（理想株価レンジ）・get_stock_score（6軸スコア）・get_dcf_valuation（DCF評価）・get_industry_benchmark（業種比較。codes にその銘柄を渡す）に分かれており、1つだけでは判断材料が偏ることがあります。\n\n6軸（各 0〜100、高いほど良い。axes に英語キー、axisLabels に日本語名）。\nprofitability・moat は構成指標が全て取得不可の場合に限り null（算出不能。誤った数字は返さない）。\nvaluation は算出できた指標の重み（valuationCoverage）が0.5未満の場合にも null になります\n（DCF乖離率だけで重み50%を占めるため、時価総額が出せない等で DCF も補助指標も揃わない銘柄で起こりやすい）。\n直近の平均FCFが0以下で DCF乖離率が算出できない会社は、DCF乖離率の欄を最も割高側の点（10点）として数えます\n（平均FCFが0に近づくと乖離率は−100%に近づき同じ点になるため。coverage にも含めます）。valuationNote にその旨が付きます。\nただし不動産業は物件の取得で FCF が負になりやすく収益力を表さないため、平均FCFが負でも10点では埋めず DCF を外します。\n時価総額が出せない・FCFの年度が足りない・不動産業で平均FCFが負、などで DCF が欠測でも、残り4指標（EV/EBITDA・PER・PBR・ネットネット、合計重み50%）が\n揃っていれば coverage=0.5 ちょうどで算出されます。この場合も valuationNote が付き、DCFを含まない前提で算出されたことを明示します。\nsafety は材料が欠けた指標を点数に入れず、算出できた指標の重み（safetyCoverage）が0.3未満の場合に null になります\n（連結に流動・固定の区分が無く Altman Z が算出できず、有利子負債も取得不可の会社など）。\nsafetyCoverage が1未満なら一部の指標を除いて算出しています。\n（growth/shareholderReturn は中立点にフォールバックするため通常nullにならない）:\n  - valuation（割安度）: DCF乖離率 / EV/EBITDA / PER / PBR / ネットネット。\n    （金融業は PER・PBR だけで評価。valuationCoverage は PER(0.6)・PBR(0.4) のうち算出できた割合）\n    （販売金融・金融サービス等のセグメントや信用供与の資産が総資産の30%以上の会社は、get_dcf_valuation と同じ判定で\n    DCF乖離率を使わず残りの指標で評価。重みの合計が50%未満なら valuation は null。valuationNote に理由）\n  - profitability（稼ぐ力）: ROE / 営業利益率 / EBITDAマージン / 従業員あたり営業利益 / ROA。\n  - growth（成長性）: 売上3年CAGR / EPS3年CAGR / PEG / 設備投資比率 / 売上5年CAGR。\n  - safety（安全性）: 自己資本比率 / Altman Z-score / ND/EBITDA / D/E / 営業CF対有利子負債。\n    （金融業は自己資本比率のみで評価。無借金の会社の営業CF対有利子負債は返済負担なしとして高評価）\n  - shareholderReturn（還元力）: 配当利回り / 増配率 / 配当性向 / DOE / 自社株買い / 総還元性向。\n    （無配企業は自社株買い実績のみで評価）\n  - moat（事業独占力）: 営業利益率σ / ROEσ / FCFマージンσ / 営業利益率水準 / SGA比率σ。\n    （金融業は営業CFに預り金・貸出金等の増減が入るため FCFマージンσ を使わず、残りの指標で評価）\n最新期の BPS・EPS が過去の年度と桁違いの株数基準で書かれている会社（splits.json に記録の無い株式併合。\n上場廃止後のスクイーズアウト等）は、axes の全項目と idealPrice を null にし、axesUnavailableReason・\nidealPriceUnavailableReason=\"share_basis_break\"・shareBasisBreak・caveats で理由を返します。\n\nidealPrice（理想株価要約・Mark 3.2）:\n  - pseudoPriceFreshness: 擬似現価の鮮度。stale/obsolete のとき α値（割安度）は\n    古い基準で計算されており実態とズレます。現在の株価と直接比較してください。\n  - dataBasis: どの時点の値を使ったか。financialsFiscalYearEnd（財務・6軸スコアの材料＝有報の最新期）/\n    pseudoPriceFiscalYearEnd / epsAnchorForecastFiscalYearEnd（epsAnchor に使った会社予想の期）/\n    newerAnnualTanshin（有報より新しい年度短信の期末・開示日。有報の提出待ちのあいだだけ入る）/ note。\n    newerAnnualTanshin があるとき、6軸スコア・財務・擬似株価は1期前の有報の値です（短信には期末の株価が無く擬似株価は更新できません）。\n  - bpsFloorApplied: true の場合、中央値(mid)は事業価値ではなく下支え（資産価値の7割 = low × 0.7）です。\n    判定が割安・超割安・適正になるときは、下支えで押し上げた中央値との比較で利益で説明できないため、verdict・alphaPct は null で、\n    verdictUnavailableReason=\"asset_floor_only\" と caveats で理由を返します（「資産価値より株価が低いから割安」と説明しないでください）。\n    割高・超割高は判定を出し、verdictBasisType=\"asset_floor\" が付きます（verdictBasis と caveats に「資産価値の7割との比較で決まった判定・\n    利益から見るとさらに割高寄り」の旨）。currentPrice の verdictAtCurrentPrice・alphaPctAtCurrentPrice も同じ規則です。\n    rawMid に下支え前の中央値が入ります。本番 summary（2026-10-10）で理想株価のある会社の約22%が該当します。\n    false でも、事業価値等の合計が資産価値の7割以上・資産価値未満の会社は mid < low になります（約14%）。\n  - forecastMayIncludeOneOff: true の場合、会社予想EPS（epsSource=forecast）または\n    予想と実績（正規化後）の幾何平均（epsSource=blended）を採用していますが\n    実績側で一過性損益が検出されています。理論株価が膨らんでいる可能性があります。\n  - forecastProgressBehind: true の場合、会社予想EPSを採用していますが\n    直近四半期の累計進捗が同時期の期待水準を大きく下回っています。\n    会社予想が据え置かれたまま実績が下振れている＝下方修正リスクが高い状態です。\n  - effectiveMultipleCapped: true の場合、実効倍率（jpxPER×ROA係数×レバ補正×qg係数）が\n    25倍キャップに達しており、事業価値は収益力に対して頭打ちになっています。\n    生の倍率（rawEffectiveMultiple）は get_ideal_price で確認できます。\n  資産価値は下値（low）と超過現金評価に分離 / 事業価値は実効倍率25倍キャップ /\n  成長価値はgrowth係数連動（最大60%）/ EPSアンカーは会社予想優先\n  （減益予想は素直に採用・2倍超の増額予想のみ幾何平均で緩和）。\n  - low / mid / high: 理想株価レンジ（下値 / 中央値 / 上値）\n  - low(下値)は資産価値（BPS×割引評価率）、mid(中央値)は事業価値+超過現金価値+配当プレミアム（資産価値の7割まで下支え）、\n    high(上値)はmid+成長価値（事業価値のうちgrowth係数に応じた一部、最大60%）\n  - epsSource: 事業価値に採用したEPSの根拠（forecast=会社予想 / normalized=一過性損益除外の試算実績 /\n    blended=予想と実績の乖離が大きい場合の幾何平均 / actual=生EPS /\n    ttm=予想も正規化も無く最新の四半期短信等から出した直近12か月EPS（内訳は ttmEps＝ライトプラン以上のみ。直近12か月の純利益を、使った短信の期末の発行済−自己株（分割調整後）で割る。判断できない会社は最新期の期中平均株数＝純利益÷EPS）\n  - verdict: 5段階判定（超割安 / 割安 / 適正 / 割高 / 超割高）。擬似現価(pseudoPrice)が\n    理想株価レンジ（low/mid/high）のどこに位置するかで決まり、alphaPct（中央値との差の%）\n    とは別の物差しです。レンジの帯の幅は銘柄ごとに異なるため、alphaPctが同程度でも\n    verdictが異なることがあります（上側の幅が狭い・無いとき、下側の幅が無いとき（mid が low 以下）は、\n    中央値の27%を判定の幅の下限にします。上下とも幅が無い銘柄は中央値の ±27% で5段階に判定します）。\n    鮮度による判定の格下げは行っていません。\n  - verdictBasis: pseudoPriceFreshness が aging 以上のときのみ、\n    「何年何月末時点の擬似株価と比較した判定か」を明記します（fresh のときは null）。\n  - alphaPct: (mid - pseudoPrice) / pseudoPrice × 100。specialDividendAfterBs がある銘柄では、\n    low・excessCash は決算期末の後に払う予想の特別配当（短信の配当の注記から読み取り）を差し引いた\n    「支払い後」の水準で、alphaPct・verdict は pseudoPrice の代わりに specialDividendAfterBs.comparisonPrice\n    （pseudoPrice − 特別配当）と比べます。currentPrice に権利落ち前の株価を渡す場合は特別配当を引いてから比べてください。\n    yearEndSpecialDividend がある銘柄では、low・excessCash は最新決算期の期末配当に含まれる特別配当\n    （有報の配当政策または配当に関する注記に期末分として記載）も差し引いた水準です。擬似株価（期末日の終値）は期末配当の\n    権利落ち後なので、比較株価からはこの額を引きません。\n  - currentPrice 引数を渡した場合のみ idealPrice.verdictAtCurrentPrice /\n    alphaPctAtCurrentPrice / currentPriceSource（\"user-provided\"）を追加で返します。\n    verdict / alphaPct（pseudoPrice基準）は変更されません。\n  - 金融4業種（銀行業・保険業・証券･商品先物取引業・その他金融業）は、ROA が構造的に低く理想株価モデルが合わないため、\n    idealPrice の verdict・alphaPct（verdictAtCurrentPrice・alphaPctAtCurrentPrice も）を null にし、\n    verdictUnavailableReason=\"financial_sector\" と caveats で理由を返します。low / mid / high は参考値です。\n  - 有報の最新期より新しい年度の決算短信が出ていて有報がまだ提出されていない会社は、比べる擬似株価が最新の確定決算より\n    1期古いため、verdict・alphaPct・upperAlphaPct を null にし、verdictUnavailableReason=\"newer_annual_tanshin_pending_yuho\" と\n    caveats で理由を返します。currentPrice を渡せば verdictAtCurrentPrice・alphaPctAtCurrentPrice は返します。有報が提出されると判定を再開します。\n  - verdictUnavailableReason は金融業 ＞ asset_floor_only（上の bpsFloorApplied）＞ 有報待ち の順に1つだけ入ります。\n  - pseudoPrice: 最新 actual PER × 生EPS の擬似現価（リアルタイム株価ではない）\n  - pseudoPriceSource: pseudoPrice の算出根拠。per_eps=通常のPER×EPS / \n    tsr_backsolved=赤字等でPER×EPSが算出不能な年度に限り、有報の株主総利回り(TSR)5年推移表から\n    決算時株価を逆算したフォールバック（実測誤差: 赤字等で実際に使われた170社・2026-10時点で中央値0.09%・最大3.4%）/ \n    tsr_backsolved_extended=従来のTSR逆算で値が出ない会社に限り、5年前（TSR表の基準年度）の株価も候補に加え、PER×EPS が無い年度の株価をその年度までのTSR逆算値で1段だけ代替した予備経路（バックテスト誤差: 中央値0.15%・p95 1.89%・10%超0.4%） / \n    per_eps_nonconsolidated=上の3つがどれも出ない会社に限り、有報の提出会社（単体）の PER × 単体の EPS（連結が赤字で連結の PER が空欄の会社など。株価は連結・単体で同じ。連結の PER×EPS との一致度は、両方ある会社で中央値0.08%・p99 1.57%。この経路で値が出る12社では期末の終値との差が10社で0.25%以内、5026は+7.29%・9219は+9.87%（原本の単体 PER 自体が期末とは別の日の株価で計算されているため）。同じ有報の当期の最高・最低株価の範囲内のときだけ使う）。\n  - pseudoPriceFiscalYearEnd: pseudoPrice の基準となった決算期末日（YYYY-MM-DD）\n  - BPS / EPS 不足の場合は null。詳細な計算過程は get_ideal_price で確認できます。\n\n注意:\n  - 各軸スコアはラジ株ナビ独自の配点ロジックによる相対評価です（業界平均ではなく固定閾値）。\n  - データ不足の軸はニュートラル付近の値になることがあります。\n  - 事業価値のEPSは 会社予想→一過性損益除外の試算→実績 の優先で採用済み（epsSourceで根拠を明示）。\n    epsSource が actual の一過性検出時（earningsQuality.oneOffDetected）のみ\n    normalizedEps / normalizedPer を追加で確認してください。\n  - verdict / alphaPct は決算時点の擬似現価（pseudoPrice）ベースの判定であり、\n    市場株価との比較ではありません。判定は pseudoPriceFiscalYearEnd（基準となった決算期末日）時点のもので、\n    決算発表から半年以上経っている場合は判定の信頼性が下がります。\n\n関連ツール: 財務の詳細は get_edinet_financial_data、理想株価の詳細は get_ideal_price。\n\n応答の metricLabels は英語キー→日本語指標名の対訳です。利用者向けには日本語名（例: verdict→「割安度判定」）のほうが伝わりやすくなります（axes の日本語名は axisLabels にあります）。\nデータ品質・値の異常・不具合に触れる場合も同様で、フィールド名を示すときは「発行済株式数（sharesOutstanding）」のように日本語を主・英語キーを括弧内にすると読みやすくなります。\n\nsplitCheck（分割履歴がある会社のみ）: 既定は要約（splits・adjustedFields・conflict）のみ。詳細は includeSplitDetails: true で、1株あたりの値ごとに raw（短信・有報の記載値）・adjusted（使った値）・factor・basis・method と、検算の材料（純利益÷EPSで逆算した株数と分割前の株数の比）を載せます。adjusted が検算と食い違う（conflict: true 等）ときは raw を基に判断してください。\n\n応答に watchlistSuggestion が含まれる場合、それはこの銘柄が利用者の監視リストに未登録であること（action: \"can-add\"）、または監視リストが上限に達していること（action: \"limit-reached\"）を知らせる情報です（note に要点）。利用者が追加を望んだときは add_to_watchlist で登録できます。\n\n※ 本データは情報提供を目的とし、投資助言・推奨ではありません。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "証券コード（例: 4665）"
+          },
+          "includeSplitDetails": {
+            "description": "省略可（既定 false）。true で分割の検算の詳細（splitCheck の items・evidence・howToVerify、splitAdjustment の reason 全文）を返します。既定では splitCheck は要約（splits・adjustedFields・conflict）のみ。検算の食い違い（conflict）があるときは、false でも詳細を返します。数値は変わりません。",
+            "type": [
+              "string",
+              "boolean"
+            ]
+          },
+          "currentPrice": {
+            "description": "省略可。利用者自身が確認した現在の株価。本サービスは株価を提供しないため、利用者が別途調べた値を渡してください。渡した場合、idealPrice.verdictAtCurrentPrice / alphaPctAtCurrentPrice を追加で返します（既存の idealPrice.verdict / alphaPct は変更されません）。",
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_ideal_price",
+      "description": "銘柄コードを指定して、ラジ株ナビ独自の理想株価モデル（Mark 3.2 乗算型）を取得します。\n株主優待は評価に含めません（優待制度がある銘柄には caveats で知らせます）。\n\n【関連ツール】「○○を分析して」のような総合的な分析には get_stock_analysis が便利です（財務・理想株価・6軸スコア・DCF・業種比較・会社予想を1回でまとめて返します。返したセクションの数ぶん、最大6回分の利用回数を使います）。\nこのツールは、全年度・内訳・注意事項の全文など、個別の深掘りに向いています。\n割安/割高を見る材料は get_edinet_financial_data（財務）・get_ideal_price（理想株価レンジ）・get_stock_score（6軸スコア）・get_dcf_valuation（DCF評価）・get_industry_benchmark（業種比較。codes にその銘柄を渡す）に分かれており、1つだけでは判断材料が偏ることがあります。\n\nモデル概要:\n  資産価値は下値（low）と超過現金評価に分離 / 事業価値は実効倍率25倍キャップ /\n  成長価値はgrowth係数連動（最大60%）/ EPSアンカーは会社予想優先\n  （減益予想は素直に採用・2倍超の増額予想のみ幾何平均で緩和）。\n  下値 = BPS × 割引評価率（資産価値）、\n  中央値 = 事業価値 + 超過現金価値（余剰現金のみ、資産のフル加算はしない） + 配当プレミアム\n  （資産価値の7割を下回るときは資産価値の7割まで下支え。資産価値の7割〜資産価値の間なら下支えせず、mid < low になる）、\n  上値 = 中央値 + 成長価値（事業価値のうち growth 係数に応じた一部、最大60%）。\n\n返却フィールド:\n  - low / mid / high: 理想株価レンジ（下値 / 中央値 / 上値）\n  - assetValue / businessValue / growthValue / dividendValue: 内訳 (低 = 資産価値)\n  - growthValueBasis: 成長価値の根拠。直近3期（欠けがなければ成長期間2年）の実績のEPS・売上CAGR（epsCagr / salesCagr。始点・終点の年度と値、years＝年数、points＝期数）の\n    ブレンドが4%以下で成長価値0、20%以上で上限。epsCagr の startValue / endValue は一過性損益を除いた試算EPS（一過性が無い年度は公表EPSのまま）で、\n    始点・終点とも同じ規則です。同じ年度の公表EPSは startReportedEps / endReportedEps、除いたかどうかは startOneOffAdjusted / endOneOffAdjusted。\n    get_industry_benchmark 等の epsCagr3y（3期前→最新期の3年）とは期間が違います。\n    会社予想は成長価値に使いません。予想の増減益は epsAnchor（epsSource=forecast）経由で事業価値・中央値に反映済みです\n    （growthValue が0でも「予想の増益が無視されている」わけではありません）。\n  - effectiveMultiple: 適用後の実効倍率（jpxPER×ROA係数×レバ補正×qg係数。25倍キャップ後の値）\n  - rawEffectiveMultiple: キャップ前の実効倍率（jpxPER×ROA係数×レバ補正×qg係数の生の積）。\n    25を超えていれば effectiveMultiple は25にキャップされ businessValue もスケールダウンされています。\n  - effectiveMultipleCapped: true の場合、実効倍率が25倍キャップに達しており、\n    事業価値（businessValue）は収益力（rawEffectiveMultiple）に対して頭打ちになっています。\n    rawEffectiveMultiple と併せて確認してください。\n  - excessCashValue: 超過現金価値（円/株。mid の資産価値相当項）＝\n    max(max(netCash,0) ÷ (発行済株式数−自己株式数) − 差し引く特別配当, 0) × 割引評価率（discount）。\n    差し引く特別配当は、期末日の貸借対照表の後に払う特別配当・記念配当（yearEndSpecialDividend と specialDividendAfterBs の合計）。\n    中間配当に含まれる特別配当は期末より前に払い済みなので差し引きません。\n    netCash は清原式（現金及び預金＋有価証券（流動）＋投資有価証券×70%−有利子負債、最新決算期末の有報）。\n    無借金でも預り金など会社のものではない現金が多い会社（預り金系の負債が netCash 候補値の1/3以上。決済代行・収納代行など）は\n    netCash を出さず、超過現金は 0 になります（excessCashBreakdown.zeroReason に理由）。\n  - excessCashBreakdown: excessCashValue の内訳。fiscalYearEnd（netCash・株数を取った決算期末）/ netCash /\n    netCashDefinition / netCashComponents（現金・有価証券・投資有価証券・有利子負債。足し引きが netCash と一致する場合のみ）/\n    sharesOutstanding・treasuryShares・effectiveShares / excessCashPerShare（特別配当を引く前の円/株）/\n    specialDividendDeducted（差し引いた特別配当の合計）・specialDividendDeductedBreakdown（latestYearEnd / forecastAfterBalanceSheet）/\n    discount・equityRatioPct・discountTable / formula /\n    recomputedExcessCashValue・reconciles（内訳から出し直した値と excessCashValue の一致）/ zeroReason（0 のときの理由）。\n  - specialDividendAfterBs: 決算期末の後に払う予想の特別配当（短信の配当の注記から読み取り）を、\n    下値・超過現金から差し引いた場合のみ付く。amount=差し引いた円/株、comparisonPrice=\n    alphaPct・verdict の比較に使った株価（pseudoPrice − amount。pseudoPrice 自体は期末の株価のまま）。\n  - yearEndSpecialDividend: 最新決算期の期末配当に含まれる特別配当・記念配当（有報の配当政策に期末分として書かれた額。無ければ配当に関する注記の「基準日が当期に属する配当のうち、配当の効力発生日が翌期となるもの」に書かれた額）を、\n    下値・超過現金から差し引いた場合のみ付く。期末配当は期末日の貸借対照表の後に払うため BPS・ネットキャッシュに含まれている。\n    amount=差し引いた円/株（分割調整後）、rawAmount=有報の記載値、fiscalYearEnd、source（dividend-policy=配当政策 / dividend-notes=配当に関する注記）、splitScale。\n    擬似株価（期末日の終値）は期末配当の権利落ち後の株価なので、alphaPct・verdict の比較株価からは引きません。\n    有報に期末分の内訳が書かれていない会社では、期末配当に特別配当が含まれていても差し引いていません。\n  - pseudoPriceFreshness: 擬似現価の鮮度。fresh(3ヶ月以内) / aging(4〜6) / stale(7〜12) /\n    obsolete(13ヶ月超)。擬似現価は決算発表時点の株価なので、経過が長いほど実株価と\n    乖離し α値（割安度）が実態とズレます。stale/obsolete では現在の株価と\n    直接比較してください（実例: 8037 カメイは判定「超割安」だが実株価は中央値超え）。\n  - dataBasis: どの時点の値を使ったか。financialsFiscalYearEnd（財務＝有報の最新期）/ pseudoPriceFiscalYearEnd /\n    epsAnchorForecastFiscalYearEnd（epsAnchor に使った会社予想の期。予想を使っていなければ null）/\n    newerAnnualTanshin（有報より新しい年度短信の期末・開示日。有報の提出待ちのあいだだけ入る）/ note。\n    newerAnnualTanshin があるとき、財務と擬似株価は1期前の有報の値です（短信には期末の株価が無く擬似株価は更新できません）。\n  - epsSource: 事業価値に採用したEPSの根拠（forecast=会社予想 / normalized=一過性損益除外の試算実績 /\n    blended=予想と実績の乖離が大きい場合の幾何平均 / actual=生EPS。予想も正規化も無い場合 /\n    ttm=直近12か月EPS。予想も正規化も無く、最新の四半期短信（または有報より先に出た翌期の年度短信）から出せた場合。内訳は ttmEps）\n  - ttmEps: epsSource=ttm かつライトプラン以上のときのみ（無料・匿名では出さない）。eps（直近12か月EPS）/ latestFiscalYearEps（最新期の実績EPS）/\n    source（quarterly=最新期の純利益＋今期の四半期累計−前期の同期累計 / annual_tanshin=有報より先に出た\n    翌期の年度短信の通期純利益）/ quarterPeriod・periodEnd・disclosedDate（使った短信）/ ttmNetIncome /\n    shares・sharesBasis（recent_period_end=使った短信の期末の発行済−自己株（分割調整後）。期中の増資・自社株買いを反映 /\n    eps_implied=最新期の期中平均株数＝純利益÷EPS。有報の純資産÷BPS と期末の発行済−自己株が25%超違う会社（種類株式等）・\n    短信に株数が無い会社・期末〜開示日の5日後に分割があり短信が反映済みか判断できない会社 /\n    period_end=最新期末の発行済−自己株）。eps = (ttmNetIncome − nonCommonIncomeDeducted) ÷ shares。\n    ttmNetIncome は親会社株主に帰属する利益で、その他の資本性金融商品（ハイブリッド資本）や優先株の取り分を含む。\n    nonCommonIncomeDeducted は短信の「純利益 − EPS×期中平均株式数」から求めた普通株主に帰属しない分で、\n    使う短信すべてに期中平均株式数があるときだけ差し引く（無い項目は差し引いていない）\n  - epsAnchor: 事業価値の基数として実際に採用したEPS値\n  - forecastEps: 入力に使われた会社予想EPS（参考値。予想が無ければ null）\n  - verdict: 5段階判定（超割安 / 割安 / 適正 / 割高 / 超割高）。擬似現価(pseudoPrice)が\n    理想株価レンジ（low/mid/high）のどこに位置するかで決まり、alphaPct（中央値との差の%）\n    とは別の物差しです。レンジの帯の幅（high-mid、mid-low）は銘柄ごとに異なるため、\n    alphaPct が同程度でも verdict が異なることがあります。ただし、上側の幅（high-mid）が狭い・無いとき、\n    下側の幅が無いとき（mid が low 以下）は、中央値の27%を判定の幅の下限にします（low/mid/high の値は変えません）。\n    上側の幅が27%より狭い銘柄は上側を27%として、mid が low 以下の銘柄は下側に上側と同じ幅（27%以上）を当てて判定し、\n    上下とも幅が無い銘柄（mid = high かつ mid ≦ low）は中央値の ±27% を仮の上限・下限にして5段階で判定します\n    （小さな差で「超割高」「超割安」にならず、大きく離れれば「超」が付くようにするため）。\n    mid が low より上の銘柄の下側は low（資産価値）までの幅をそのまま使い、low を下回れば超割安です。鮮度（pseudoPriceFreshness）\n    による判定の格下げは行っていません（aging/stale/obsoleteでもverdictの決め方自体は同じ）。\n  - verdictBasis: pseudoPriceFreshness が aging 以上（決算期末から4ヶ月超）のときのみ、\n    「何年何月末時点の擬似株価と比較した判定か」を明記します。fresh のときは null。\n    bpsFloorApplied=true で verdict があるとき（割高・超割高）は、資産価値の7割を基準にした判定である旨も先頭に入ります。\n  - verdictBasisType: bpsFloorApplied=true で verdict があるとき（割高・超割高だけ）\"asset_floor\"。判定は資産価値の7割（下支え）との\n    比較で決まっており、事業価値ベースの中央値（rawMid）はそれより低いため、利益から見るとさらに割高寄りです（caveats の先頭にも同じ注意書き）。\n  - bpsFloorApplied: true の場合、中央値(mid)は事業価値・配当プレミアムではなく\n    資産価値の7割（下支え。mid = low × 0.7）にクランプされています。事業価値等の合計が資産価値の7割を\n    下回ったケースで、事業価値の成長性を反映していません。判定が割安・超割安・適正になるときは利益で説明できないため\n    verdict・alphaPct・upperAlphaPct（currentPrice の verdictAtCurrentPrice・alphaPctAtCurrentPrice も同じ規則）を null にし、\n    verdictUnavailableReason=\"asset_floor_only\" と caveats で理由を返します。割高・超割高は判定を出し、verdictBasisType=\"asset_floor\" が付きます\n    （事業価値ベースの中央値 rawMid は資産価値の7割より低いので、利益から見るとさらに割高寄り）。false でも、事業価値等の合計が資産価値の7割以上・\n    資産価値未満の会社は mid < low（理論株価が資産価値より低い）になります。\n    rawMid（クランプ前の中央値）と併せて確認してください。\n  - forecastMayIncludeOneOff: true の場合、epsAnchor は会社予想EPS（epsSource=forecast）\n    または予想と実績（正規化後）の幾何平均（epsSource=blended）で、同じ会社の実績では\n    一過性損益が検出されている。会社予想に特別利益が含まれていても短信XBRLには\n    予想側の特別損益タグが無く検出できないため、理論株価が一過性で\n    膨らんでいる可能性を考慮して読んでください。\n  - 今期予想の純利益が予想経常利益を上回り、epsAnchor が会社予想由来（forecast / blended）の会社は、\n    caveats に「今期予想に一度きりの利益が含まれている可能性」を出します（値・判定は変えません。forecastMayIncludeOneOff より広い目印）。\n  - forecastProgressBehind: true の場合、epsAnchor は会社予想EPSだが、\n    直近四半期（q1/q2/q3のいずれか、採用元短信）の累計進捗が同時期の\n    期待水準を大きく下回っている。会社予想は据え置かれたまま実績が\n    逆行している可能性があり、下方修正リスクを考慮して読んでください。\n  - rawMid: 下支え前の中央値（参考値）。bpsFloorApplied が true のときのみ\n    mid と異なる値になります（false の場合は mid と同値）。\n  - alphaPct: (mid - pseudoPrice) / pseudoPrice × 100 （+ なら擬似現価が理論株価より低い = 割安方向）。\n    specialDividendAfterBs がある銘柄では pseudoPrice の代わりに specialDividendAfterBs.comparisonPrice\n    （pseudoPrice − 期末後に払う特別配当）で計算します（upperAlphaPct・verdict も同じ）。\n  - upperAlphaPct: (high - pseudoPrice) / pseudoPrice × 100\n  - pseudoPrice: 最新 actual PER × EPS の擬似現価（リアルタイム株価ではない。生EPSで算出、正規化しない）\n  - pseudoPriceSource: pseudoPrice の算出根拠。per_eps=通常のPER×EPS / \n    tsr_backsolved=赤字等でPER×EPSが算出不能な年度に限り、有報の株主総利回り(TSR)5年推移表から\n    決算時株価を逆算したフォールバック（実測誤差: 赤字等で実際に使われた170社・2026-10時点で中央値0.09%・最大3.4%）/ \n    tsr_backsolved_extended=従来のTSR逆算で値が出ない会社に限り、5年前（TSR表の基準年度）の株価も候補に加え、PER×EPS が無い年度の株価をその年度までのTSR逆算値で1段だけ代替した予備経路（バックテスト誤差: 中央値0.15%・p95 1.89%・10%超0.4%） / \n    per_eps_nonconsolidated=上の3つがどれも出ない会社に限り、有報の提出会社（単体）の PER × 単体の EPS（連結が赤字で連結の PER が空欄の会社など。株価は連結・単体で同じ。連結の PER×EPS との一致度は、両方ある会社で中央値0.08%・p99 1.57%。この経路で値が出る12社では期末の終値との差が10社で0.25%以内、5026は+7.29%・9219は+9.87%（原本の単体 PER 自体が期末とは別の日の株価で計算されているため）。同じ有報の当期の最高・最低株価の範囲内のときだけ使う） / null=算出不能。\n  - pseudoPriceTsrOffsetsUsed: pseudoPriceSource が tsr_backsolved / tsr_backsolved_extended のときのみ、\n    株価の値の算出に使った「何年前の有報か」（1〜4。tsr_backsolved_extended では5=5年前も）の一覧（複数なら中央値）。\n  - pseudoPriceTsrChainedOffsets: tsr_backsolved_extended で、PER×EPS が無い年度の株価をその年度までの\n    TSR逆算値で代替した（連鎖した）オフセットの一覧。連鎖を使っていなければ省略。\n    1つだけのときは、分割をまたがない候補が1つしかなく、分割をまたぐ候補との5%以内の一致で確認した値。\n  - pseudoPriceFiscalYearEnd: pseudoPrice の算出根拠となった決算期末日（YYYY-MM-DD）。\n    決算発表から日数が経つほど、実際の市場株価と pseudoPrice の乖離は拡大しうる。\n    alphaPct / verdict はこの決算期時点の判定で、決算発表から半年以上経っている場合はα値の信頼性が下がります。\n  - currentPrice 引数を渡した場合のみ、以下が追加されます:\n    verdictAtCurrentPrice（currentPriceを理想株価レンジと比較し直した5段階判定）、\n    alphaPctAtCurrentPrice（(mid - currentPrice) / currentPrice × 100）、\n    currentPriceSource（常に \"user-provided\"）。\n    verdict / alphaPct（pseudoPrice基準）はcurrentPriceを渡しても変更されません。\n  - discount / leverageAdj / roaCoef / qgCoef / quality / growth / roaApprox / jpxPerUsed: 計算過程\n  - earningsQuality: 一過性損益（特別利益・特別損失）の検出結果（検出時のみ含む）\n  - excludedDividendDecisions（newerDisclosureWarning / newerDisclosureCheck 内）は、「剰余金の配当」\n    （配当の決定）のうち、採用した短信の期末の次の四半期末より前に出たため短信に載っている実績配当の\n    決定とみなし、修正の候補から外した開示です（特別配当・方針変更・基準日設定などを含む表題は外しません）。\n  - dividendForecastSource が含まれる場合、配当価値の基礎の予想配当を予想EPSと別の決算短信から読んだ（fromOtherDisclosure: true。配当予想は最新の予想年度で開示日が最も新しい短信から読む）か、年間が空欄のため中間（実績または予想）＋期末の予想で組んだ（composedFrom に内訳と分割後の値）ことを示します。\n  - newerDisclosureWarning が含まれる場合、採用した決算短信より後に「配当予想の修正」\n    「業績予想の修正」等の適時開示が別途出ています。dividendValue はまだその修正を\n    反映していません。該当開示は get_timely_disclosures で確認できます。\n    disclosures[].parsedNumbers が付いている場合、その開示のXBRLから修正前後の\n    数値（previous/current、増減率）を取り込み済みです。修正後の予想配当は\n    get_earnings_forecast の latestRevision.dividend で確認できます\n    （本ツールの dividendValue 自体はこの修正で置き換えていません。また latestRevision の\n    数値は決算短信本体ほど検証されていないため、重要な判断にはPDF本文で裏取りしてください）。\n  - newerDisclosureCheck は上の検出処理が実際にどこまで確認できたかを示します。\n    status:unverifiable は「修正が無い」ことを意味しません（reason参照）。\n  - caveats: モデルの前提・データ制約に関する断り書きの配列（該当するものだけ含む）。\n    金融業での注意・blended採用時の一過性懸念・変則決算の年換算根拠など、状況に応じて追加されます。\n\n注意:\n  - earningsQuality.oneOffDetected が true でも、epsSource が forecast/normalized/blended なら\n    事業価値のEPSは既に正規化・予想ベースに補正済みです（Mark 3.0 の過大評価を修正）。\n    epsSource が actual の場合のみ、normalizedEps / normalizedPer を追加で確認してください。\n  - pseudoPrice は最新決算時の PER × 生EPS で算出した擬似現価であり、\n    リアルタイムの市場株価ではありません（決算時株価の復元のため常に生EPSを使用）。\n  - BPS / EPS が不足している場合は算出不可（null）となります。\n  - 最新期の BPS・EPS が過去の年度と桁違いの株数基準で書かれている会社（splits.json に記録の無い株式併合。\n    上場廃止後のスクイーズアウト等）は、low / mid / high・pseudoPrice・verdict を null にし、\n    unavailableReason=\"share_basis_break\" と shareBasisBreak（latestFiscalYearEnd・latestImpliedShares・\n    comparedFiscalYearEnd・comparedImpliedShares・ratio。株数は純資産÷BPS・純利益÷EPS から逆算）・caveats で理由を返します。\n  - verdict / alphaPct は pseudoPrice が取得できない場合は null になります。\n  - 金融4業種（銀行業・保険業・証券･商品先物取引業・その他金融業）は、ROA が構造的に低く本モデルが合わないため、\n    verdict・alphaPct・upperAlphaPct（currentPrice を渡したときの verdictAtCurrentPrice・alphaPctAtCurrentPrice も）を null にし、\n    verdictUnavailableReason=\"financial_sector\" と caveats で理由を返します。low / mid / high・内訳・pseudoPrice は参考値として返します。\n  金融業以外でも、金融事業のセグメントの資産、または割賦売掛金・営業貸付金・リース債権が総資産の30%以上の会社（get_dcf_valuation が乖離率を出さない会社と同じ判定）は、\n    値と判定はそのまま返し、caveats の先頭で「ROA係数が低く出やすく、判定が割高寄りに出ることがある」と断ります。\n  - 有報の最新期より新しい年度の決算短信が出ていて有報がまだ提出されていない会社は、比べる擬似株価が最新の確定決算より\n    1期古いため、verdict・alphaPct・upperAlphaPct を null にし、verdictUnavailableReason=\"newer_annual_tanshin_pending_yuho\" と\n    caveats で理由を返します。currentPrice を渡せば verdictAtCurrentPrice・alphaPctAtCurrentPrice は返します。有報が提出されると判定を再開します。\n  - 中央値が下支え（資産価値の7割）で決まっている会社（bpsFloorApplied=true。事業価値等から求めた中央値 rawMid が資産価値の7割未満）で、\n    判定が割安・超割安・適正になるときは、下支えで押し上げた中央値との比較で利益で説明できないため、verdict・alphaPct・upperAlphaPct を null にし、\n    verdictUnavailableReason=\"asset_floor_only\" と caveats で理由を返します。low / mid / high・rawMid は参考値です。割高・超割高は判定を出します。\n    currentPrice を渡したときも同じ規則で、その株価で割高・超割高なら verdictAtCurrentPrice・alphaPctAtCurrentPrice を返し、割安・超割安・適正なら null です。\n    「資産価値より株価が低いから割安」と説明しないでください。理由は金融業 ＞ asset_floor_only ＞ 有報待ち の順に1つだけ入ります。\n  - verdict / alphaPct は決算時点の擬似現価（pseudoPrice）ベースの判定です。\n  - 本モデルはラジ株ナビ独自の算出値であり、投資助言・推奨ではありません。\n\n関連ツール: 財務の詳細は get_edinet_financial_data、スコアは get_stock_score。\n\n応答の metricLabels は英語キー→日本語指標名の対訳です。利用者向けには日本語名（例: roe→「ROE（自己資本利益率）」）のほうが伝わりやすくなります。\nデータ品質・値の異常・不具合に触れる場合も同様で、フィールド名を示すときは「発行済株式数（sharesOutstanding）」のように日本語を主・英語キーを括弧内にすると読みやすくなります。\n\nsplitCheck（分割履歴がある会社のみ）: 既定は要約（splits・adjustedFields・conflict）のみ。詳細は includeSplitDetails: true で、1株あたりの値ごとに raw（短信・有報の記載値）・adjusted（使った値）・factor・basis・method と、検算の材料（純利益÷EPSで逆算した株数と分割前の株数の比）を載せます。adjusted が検算と食い違う（conflict: true 等）ときは raw を基に判断してください。\n\n応答に watchlistSuggestion が含まれる場合、それはこの銘柄が利用者の監視リストに未登録であること（action: \"can-add\"）、または監視リストが上限に達していること（action: \"limit-reached\"）を知らせる情報です（note に要点）。利用者が追加を望んだときは add_to_watchlist で登録できます。\n\n※ 本データは情報提供を目的とし、投資助言・推奨ではありません。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "証券コード（例: 7203）"
+          },
+          "includeSplitDetails": {
+            "description": "省略可（既定 false）。true で分割の検算の詳細（splitCheck の items・evidence・howToVerify、splitAdjustment の reason 全文）を返します。既定では splitCheck は要約（splits・adjustedFields・conflict）のみ。検算の食い違い（conflict）があるときは、false でも詳細を返します。数値は変わりません。",
+            "type": [
+              "string",
+              "boolean"
+            ]
+          },
+          "currentPrice": {
+            "description": "省略可。利用者自身が確認した現在の株価。本サービスは株価を提供しないため、利用者が別途調べた値を渡してください。渡した場合、その株価を理想株価レンジと比較し直した verdictAtCurrentPrice / alphaPctAtCurrentPrice を追加で返します（既存の verdict / alphaPct は pseudoPrice 基準のまま変更されません）。",
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_major_shareholders_history",
+      "description": "銘柄コードを指定して、有価証券報告書「大株主の状況」上位10名の時系列を取得します。\n過去最大10年分の決算期末日ごとに、上位株主の持株数・持株比率を返します。\n\n返却値: years 配列。各要素は { fiscalYearEnd, shareholders: [{ rank, name, sharesHeld, shareholdingRatio }] }。\n  - shareholdingRatio は % 表記（例: 12.93 = 12.93%）。\n    ※ get_edinet_financial_data の majorShareholders は 0-1 表記で、本ツールとは単位が異なります。\n\n用途: 安定株主構成の経年変化、信託銀行（インデックス）保有比率の推移、\n持株会・取引先など事業上の関係株主の増減トレンド分析。\n\n注意: 有報ベースの決算期末スナップショット。5%ルールの大量保有報告書（変更が早い）とは別データ。\n個人株主の氏名は表示しません（name は「個人株主」と表示。順位・持株数・持株比率はそのまま）。\n\n関連ツール: 大量保有報告書は get_large_holdings、最新1期のみで良ければ get_edinet_financial_data の majorShareholders。\n\n応答の metricLabels は英語キー→日本語指標名の対訳です。利用者向けには日本語名（例: shareholdingRatio→「持株比率」）のほうが伝わりやすくなります。\nデータ品質・値の異常・不具合に触れる場合も同様で、フィールド名を示すときは「発行済株式数（sharesOutstanding）」のように日本語を主・英語キーを括弧内にすると読みやすくなります。\n\n※ 本データは情報提供を目的とし、投資助言・推奨ではありません。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "証券コード（例: 4665）"
+          },
+          "fiscalYear": {
+            "description": "特定の決算期末日（YYYY-MM-DD）に絞り込み。省略時は全年度。",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "search_stocks",
+      "description": "会社名・証券コードから銘柄を検索します（ひらがな・カタカナ・全角半角・大文字小文字の揺れを自動吸収）。\n旧社名（例: 日本電産→ニデック）・英語名・通称や略称（例: MUFG・SMBC・JR東日本）でも検索でき、各結果の matchedBy にどの名前で一致したか（currentName / formerName / englishName / code / alias）を返します。\n証券コードは「7203.T」「７２０３」「TSE:7203」の形でも受け付けます。\n現在上場中の会社に一致が無く、上場廃止の会社に一致があるときは、delistedMatches（社名・コード・最終有報提出日）で案内します。\n用途: 『トヨタの銘柄コードは？』のような名前→コード解決。\n見つけたコードは get_edinet_financial_data 等の code 引数に渡せます。\n\n※ 本データは情報提供を目的とし、投資助言・推奨ではありません。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "会社名または証券コード（部分一致可）"
+          },
+          "limit": {
+            "description": "返す件数の上限（デフォルト: 10、最大: 50）",
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_investor_portfolio",
+      "description": "有価証券報告書『大株主の状況』から構築した投資家→保有銘柄の逆引き検索。\nアクティビスト（村上系ファンド・オアシス・エフィッシモ等）は名寄せ済み。\n個人株主の氏名は表示しません（個人の投資家は一覧・検索の対象外。銘柄ごとの大株主では「個人株主」と表示）。\n\nisNew=true は前年度の大株主リストに不在（新規登場）。changePt は保有比率の前年差。\n\n【重要: shareholdingRatio の単位】holdings[].shareholdingRatio / prevShareholdingRatio は\n% 表記です（例: 12.8 = 12.8%）。changePt もポイント差（%表記同士の差分）です。\n  - get_edinet_financial_data の majorShareholders[].shareholdingRatio や\n    foreignShareholdingRatio 等は同名に見えても 0-1 表記（例: 0.128 = 12.8%）です。\n    本ツールの値と get_edinet_financial_data の値は単位が異なります（そのまま比べると100倍ずれます）。\n\n注意: データは各銘柄の最新有報時点のスナップショット（年1回更新）。直近の5%ルール変動は get_large_holdings を使用。\n大株主上位10名に載る保有が対象。名前が大株主に無い場合は大量保有報告書（5%ルール）の提出者（法人のみ）からも検索する。\n\n表記（全角/半角スペース・中黒）や外国法人の法人格（エルエルシー・インク・リミテッド・LLC・Inc.・Ltd. 等）の違いだけの提出者は、同じ投資家として1件にまとめて返します\n（元の提出者名は submitterNames）。「株式会社」「有限会社」の日本法人は、コーポレーション・カンパニー等の有無で別会社になりうるためまとめません。\n\n候補が複数に絞れないときは candidates（名前一覧）に加え、保有銘柄数の多い上位3候補の保有銘柄を candidateDetails で返します。\n\n使用例: 『村上系が持っている銘柄は？』→ name: \"村上\"\n\n応答の metricLabels は英語キー→日本語指標名の対訳です。利用者向けには日本語名（例: shareholdingRatio→「持株比率」）のほうが伝わりやすくなります。\nデータ品質・値の異常・不具合に触れる場合も同様で、フィールド名を示すときは「発行済株式数（sharesOutstanding）」のように日本語を主・英語キーを括弧内にすると読みやすくなります。\n\n※ 本データは情報提供を目的とし、投資助言・推奨ではありません。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "description": "投資家名（部分一致）。省略すると保有銘柄数上位の投資家一覧を返します。",
+            "type": "string"
+          },
+          "limit": {
+            "description": "返す件数の上限（デフォルト: 20、最大: 100）",
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_dcf_valuation",
+      "description": "銘柄コードを指定して、DCF（ディスカウント・キャッシュフロー）法による理論企業価値の内訳と\n感度分析を取得します。6軸スコアの割安度（valuation軸）の主指標（ウェイト50%）として\n内部で使われているDCFモデルと完全同一の計算ロジックを、内訳付きで露出したものです。\n株主優待は評価に含めません（優待制度がある銘柄には caveats で知らせます）。\n\n【関連ツール】「○○を分析して」のような総合的な分析には get_stock_analysis が便利です（財務・理想株価・6軸スコア・DCF・業種比較・会社予想を1回でまとめて返します。返したセクションの数ぶん、最大6回分の利用回数を使います）。\nこのツールは、全年度・内訳・注意事項の全文など、個別の深掘りに向いています。\n割安/割高を見る材料は get_edinet_financial_data（財務）・get_ideal_price（理想株価レンジ）・get_stock_score（6軸スコア）・get_dcf_valuation（DCF評価）・get_industry_benchmark（業種比較。codes にその銘柄を渡す）に分かれており、1つだけでは判断材料が偏ることがあります。\n\n【FCFの定義差に注意】本ツールの baseFCF は「営業CF−設備投資−リース債務の返済」です（dcfAvailable=false 時の fcfSeries も同じ定義）。\nget_edinet_financial_data が返す fcf は「営業CF+投資CF」（簡易FCF）で、別物の指標です。\n投資CFには資産売却・M&A・有価証券の取得等が丸ごと乗るため、事業のキャッシュ創出力を\n見るDCFでは前者を使います。両者は同じ「FCF」表記でも値が数倍違うことがあります\n（実例: 9434 ソフトバンクの2026年3月期は簡易FCF 1,229億円に対し営業CF−設備投資 6,485億円）。\n利用者に説明する際は、どちらの定義の数字かを明示してください。\n\nモデル概要（ベースシナリオ）:\n  WACC 6.5% / 永続成長率 1.0% / 予測期間5年 / ベースFCF=直近最大5年平均FCF（営業CF-設備投資-リース債務の返済）/\n  成長率=売上高3年CAGR×0.5を-5%〜+10%にクランプして適用。\n  理論企業価値(EV) = 予測期間FCFの現在価値合計 + ターミナルバリューの現在価値。\n  乖離率(%) = (理論EV / 時価総額 - 1) × 100（正=割安、負=割高）。\n\n返却フィールド:\n  - base: ベースシナリオ（WACC6.5%・永続成長率1.0%）の内訳\n    wacc / terminalGrowth / forecastYears / baseFCF / fcfGrowth / pvForecast / terminalValue /\n    pvTerminal / enterpriseValue / gapPercent / currentPrice / currentPriceSource / impliedSharePrice\n  - currentPrice: 市場の株価ではなく、最新決算期末時点の擬似株価（有報の PER×EPS 等から復元）。\n    currentPriceAsOf がその決算期末日、currentPriceAgeMonths / currentPriceFreshness が経過月数と鮮度\n    （fresh≦3ヶ月 / aging≦6 / stale≦12 / obsolete）。株価が大きく動いた銘柄では乖離率を割り引いて読むこと。\n  - currentPriceSource: currentPrice の算出根拠。per_eps=通常のPER×EPS / \n    tsr_backsolved=赤字等でPER×EPSが算出不能な年度に限り、有報の株主総利回り(TSR)5年推移表から\n    逆算したフォールバック（実測誤差: 赤字等で実際に使われた170社・2026-10時点で中央値0.09%・最大3.4%）/ \n    tsr_backsolved_extended=従来のTSR逆算で値が出ない会社に限り、5年前（TSR表の基準年度）の株価も候補に加え、PER×EPS が無い年度の株価をその年度までのTSR逆算値で1段だけ代替した予備経路（バックテスト誤差: 中央値0.15%・p95 1.89%・10%超0.4%） / \n    per_eps_nonconsolidated=上の3つがどれも出ない会社に限り、有報の提出会社（単体）の PER × 単体の EPS（連結が赤字で連結の PER が空欄の会社など。株価は連結・単体で同じ。連結の PER×EPS との一致度は、両方ある会社で中央値0.08%・p99 1.57%。この経路で値が出る12社では期末の終値との差が10社で0.25%以内、5026は+7.29%・9219は+9.87%（原本の単体 PER 自体が期末とは別の日の株価で計算されているため）。同じ有報の当期の最高・最低株価の範囲内のときだけ使う） / \n    user-provided=擬似株価をどちらの方法でも算出できない銘柄で、currentPrice 引数を渡したときだけ、\n    その株価で時価総額を組んで計算した（currentPriceAsOf・鮮度は null、gapPercent=gapPercentAtCurrentPrice）。\n  - sensitivity: WACC{5.5, 6.5, 8.0}% × 永続成長率{0, 1, 2}% の3×3=9パターンの配列。\n    各要素は wacc / terminalGrowth / isBase / enterpriseValue / gapPercent / impliedSharePrice。\n  - impliedSharePrice: 1株理論価格 = 現値 × (1 + gapPercent/100)（事業価値ベースの近似値）\n  - base.fcfGrowthBasis: 成長率の根拠（売上の始点・終点の年度と値、売上3年CAGR%）。fcfGrowth = CAGR×0.5 を\n    −5%〜+10% にクランプ。売上が4期そろわなければ null（成長率0%）\n  - base.fcfSeries: baseFCF の平均に使った年度ごとの営業CF・設備投資・リース返済・FCF（検算用）。\n    設備投資は CF計算書の有形固定資産＋無形資産の取得の支出（売却収入は差し引かない）。CF計算書に投資不動産\n    （賃貸ビル等）の取得の行があればそれも含み、そう分かった年度は capexIncludesInvestmentProperty=true が付く。付かない年度でも、CF計算書の行が「有形固定資産及び投資不動産の取得」のような会社（2120・2811・5411・9158 等）は投資不動産を含む。無形の取得が「無形資産及びその他の資産」「無形固定資産・投資等」の合算行で書かれた会社（2220・5021・9437）は、その合算額を無形として含む。\n    不動産業など賃貸物件を積み増す会社では、投資不動産の取得の分だけFCFが小さく出る。\n  - currentPrice 引数を渡した場合のみ: base と sensitivity の各要素に gapPercentAtCurrentPrice\n    （渡された株価で計算し直した乖離率）、base に providedCurrentPrice / providedCurrentPriceSource（\"user-provided\"）。\n    gapPercent・currentPrice（擬似株価基準）は変更されません。\n  - caveats: モデルの限界に関する注意書き（下記参照）\n  - modelFit: 不動産業で棚卸資産（販売用不動産）が総資産の30%以上の分譲型のときだけ付く\n    { fit: false, reason: \"real_estate_inventory_heavy\", inventoryToAssets }。販売用不動産の仕入れが営業CFに入り\n    5年平均FCFが大きく振れるため、DCFの理論企業価値・gapPercentは参考にならない（値は変えていない）。\n    その場合は caveats の先頭に強い注意書きが付く。fcfSeries の符号の推移やBPS・PBR等の別の物差しで見ること。\n  - modelInputs: 算出の前提となった事実。fcfYield(%) / negativeFCFYears\n  - gapSuppressed / gapSuppressedReason: 金融事業が大きい会社のときだけ付く。このとき\n    gapPercent・impliedSharePrice・sensitivity の乖離率（gapPercentAtCurrentPrice を含む）・modelInputs.fcfYield は null。\n    対象は (1) 金融業（銀行・保険・証券・その他金融）/ (2) 金融事業のセグメント（販売金融・金融サービス・カード等）の\n    資産が総資産の30%以上（例: 自動車メーカーの販売金融）/ (3) 割賦売掛金・営業貸付金・リース債権が総資産の30%以上。\n    このDCFは理論企業価値を時価総額と直接比べ有利子負債を差し引いていないため、貸出の原資として多額の負債を持ち\n    営業CFに貸出債権の増減が混ざる会社では乖離率が判断材料になりません。gapSuppressedReason.type が\n    financial_sector / finance_segment / credit_receivables のどれか、message に理由。EV・baseFCF 等の内訳は参考として返します。\n    この場合、割安/割高の判断には DCF ではなく PBR・ROE・配当利回り等の別の物差しが向いています。\n\n⚠️ このDCFモデルは全銘柄に当てはまるわけではありません。\n  実測（933銘柄・2026-09-11）でDCF算出成功597件のうち約27%が、\n  理論株価がBPSの0.3倍未満または3倍超という極端な値になりました。\n  データの誤りではなく、5年単純平均FCFが投資サイクルを平滑化しきれない\n  というモデル側の限界です。資本集約型の業種で起きやすくなります。\n\n  modelInputs.negativeFCFYears が空でないとき、modelInputs.referenceExcludingNegativeFCFYears に\n  「FCFマイナスの年を除いた平均で同じ式を計算した参考値」（baseFCF・enterpriseValue・impliedSharePrice）を返し、\n  caveats にも注記します（base の値は変わりません。マイナスの年を除くのが正しいという意味ではありません）。\n  modelInputs.fcfYield は判定結果ではなく前提の提示ですが、目安になります。\n  実測の中央値は 過小側0.89% / 正常群4.63% / 過大側7.05% で、\n  1%未満だと理論株価がBPSを大きく下回る側に振れやすくなります（精度77.8%）。\n  ただし過大側の判別材料は未検討で、fcfYield が高いことは異常の証拠になりません。\n\n  理論株価だけで「割安」「割高」を結論づけるには限界があり、get_ideal_price・get_stock_score と\n  突き合わせると判断材料の偏りを減らせます。\n\n注意（caveats）:\n  - 平均FCFベースのため、一過性項目（特別損益等）の影響を受ける場合があります。\n  - 低WACCシナリオ（5.5%）はシクリカル株で理論価値が過大に出やすいため、ベース（6.5%）を\n    無視して高い数字だけを拾わないでください。\n  - 高WACC上限は8.0%までのため、実態WACCが10%超になる成長株・高リスク銘柄では\n    全シナリオが割安に見えても過信は禁物です。\n  - 1株理論価格は事業価値ベースで、ネットキャッシュ・有利子負債の橋渡しをしていません。\n    無借金優良企業は理論より高く、多額の有利子負債企業は理論より低く出る傾向があります。\n  - baseFCF は直近最大5年の単純平均のため、直近2期のFCFが平均を大きく上回っている\n    （成長途上、または一過性の入金等）企業では直近の実力より小さく出ることがあります\n    （本番実測: 直近2期連続でbaseFCFの1.5倍以上になる銘柄はDCF算出可能銘柄の約1割強）。\n    該当する場合のみ caveats に注記します。\n  - marketCap（時価総額）が算出できない銘柄（PER/EPS/発行済株式数のいずれか欠損）はDCF算出不可です。\n    ただし擬似株価だけが算出できない（赤字で PER なし・TSR逆算も不成立）場合は、currentPrice 引数を渡せば\n    その株価で算出します（currentPriceSource=user-provided）。\n  - 最新期の BPS・EPS が過去の年度と桁違いの株数基準で書かれている会社（splits.json に記録の無い株式併合。\n    上場廃止後のスクイーズアウト等）は、株数の基準が決められず時価総額を組めないため、currentPrice を渡しても\n    dcfAvailable=false・unavailableReason=\"share_basis_break\"・shareBasisBreak・reason を返します。\n  - FCF系列が2年未満、または直近平均FCFが負の銘柄はDCF算出不可です。\n    この場合エラーではなく dcfAvailable=false と fcfSeries（FCF推移）を返します。\n    reason で「平均は負だが最新期は黒字」か「構造的にFCF不足」かを区別できます。\n  - fcfSeries[].missingReason: freeCashFlow が null の年度の理由（営業CF・設備投資の\n    データ欠損）。業種/業態でDCF対象外の銘柄（reason参照）では、その欠損自体が\n    評価の可否に影響しない旨を末尾に補記します（欠損の事実は変わりません）。\n\n関連ツール: 財務の詳細は get_edinet_financial_data、理想株価は get_ideal_price、\n6軸スコアは get_stock_score。\n\n応答の metricLabels は英語キー→日本語指標名の対訳です。利用者向けには日本語名（例: enterpriseValue→「理論企業価値」）のほうが伝わりやすくなります。\nデータ品質・値の異常・不具合に触れる場合も同様で、フィールド名を示すときは「発行済株式数（sharesOutstanding）」のように日本語を主・英語キーを括弧内にすると読みやすくなります。\n\n応答に watchlistSuggestion が含まれる場合、それはこの銘柄が利用者の監視リストに未登録であること（action: \"can-add\"）、または監視リストが上限に達していること（action: \"limit-reached\"）を知らせる情報です（note に要点）。利用者が追加を望んだときは add_to_watchlist で登録できます。\n\n※ 本データは情報提供を目的とし、投資助言・推奨ではありません。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "証券コード（例: 7203）"
+          },
+          "currentPrice": {
+            "description": "省略可。利用者自身が確認した現在の株価。本サービスは株価を提供しないため、利用者が別途調べた値を渡してください。渡した場合、その株価で計算し直したgapPercentAtCurrentPrice を base と sensitivity の各要素に追加で返します（既存の gapPercent・currentPrice は決算期末の擬似株価基準のまま変更されません）。擬似株価を算出できない銘柄（赤字で PER なし等）では、この株価で時価総額を組んで DCF を返します（currentPriceSource=user-provided）。",
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_earnings_flash",
+      "description": "当日または直近営業日の決算速報（TDnet 決算短信）を注目度順に取得します。\n銘柄を指定しない「今日の決算は？」のような質問に答えるためのツールです。\n\n返却は注目度上位 3 件。全体の件数と増減益の内訳は全件から集計して返します。\n一覧（code なし）は 1 件ごとの要約（主要実績と前年比・予想の要点・配当の判定・注目度・warnings）を返します。\n全項目（前期実績・B/S・CF・サプライズ判定・推移 recentTrend 5期分）は code を指定すると取得できます。\n（includeDetails=true で一覧にも全項目を付けられますが、10件で約6万字になり表示上限を超えることがあります）\n※このツールは返した件数ぶん利用回数を使います（最大 3 回。0件・1件なら1回）。\n本決算（通期）のみを返します。四半期速報は ライトプラン以上でご利用いただけます。\n\n【warnings について】返却データの warnings 配列には、以下の観点の判定結果が入ります。\nstatus が detected のものは、数字だけでは読み取りにくい注意点（業績の見かけと実態のずれ）です。\n（要約では detected のものだけ warnings に入ります。データ不足で判定できなかった観点は warningsUnavailable に\n  パターン名で入り、「該当なし」ではありません。どちらにも無い観点は「該当なし」と判定済みです）\n  1. operating_loss_ordinary_profit: 営業赤字なのに経常黒字（本業の不振が営業外で隠れる）\n  2. net_loss_positive_ocf: 純損失なのに営業CF黒字（減損等の非現金損失）\n  3. inflated_change_rate: 前期が極小のため変化率が誇張されている\n  4. dividend_up_despite_loss: 赤字なのに増配（資本の取り崩しの可能性）\n  5. improving_but_still_loss: 改善率はプラスだが実額は赤字のまま\n\n【読み方の注意】\n  - period が q1/q2/q3 の銘柄の fiscalYearEnd は、その四半期の累計期間の末日です\n    （年度の決算期末日ではありません）。actual と増減率も、その累計の値です。\n  - breakdown の「赤字転落」は「減益」の内数です（合計が totalCount と一致しないことがあります）。\n\nstatus が unavailable のものは「該当なし」ではなく「データが無く判定できない」です。\n警告が出ていないことは「問題なし」を意味しません（判定できる観点が限られるため）。\n\n推移の詳細は get_edinet_financial_data（全項目。既定は直近2期、10期分は fiscalYear: \"all\"）、\nスコアは get_stock_score で確認できます。\n\n※ 本データは情報提供を目的とし、投資助言・推奨ではありません。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "description": "YYYY-MM-DD。省略時は最新営業日。直近7営業日のみ対応。",
+            "type": "string"
+          },
+          "code": {
+            "description": "証券コードで1銘柄に絞ります（例: 7203）。英字入り（140A等）も可。",
+            "type": "string"
+          },
+          "limit": {
+            "description": "返す件数。上限 3。",
+            "type": [
+              "string",
+              "number"
+            ]
+          },
+          "includeDetails": {
+            "description": "全項目（前期実績・財務・サプライズ判定・recentTrend）を付けます。code 指定時の既定は true、一覧の既定は false（要約のみ）。",
+            "type": [
+              "string",
+              "boolean"
+            ]
+          },
+          "includeReits": {
+            "description": "REIT・投資法人を含めます。既定は除外。",
+            "type": [
+              "string",
+              "boolean"
+            ]
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_industry_benchmark",
+      "description": "東証33業種ごとの指標の中央値・四分位（25%/75%）と、指定した会社の業種内の順位・位置を返します。\n「この会社の ROE は同業の中でどのあたりか」を1回の呼び出しで知るためのツールです。\n銘柄の総合分析（「○○を分析して」）には get_stock_analysis が便利です（業種比較の要点＝主要7指標の業種の中央値と順位を含みます）。このツールは、22指標・四分位・複数社の比較まで見るときに向いています。割安/割高の判断材料は get_edinet_financial_data・get_ideal_price・get_stock_score・get_dcf_valuation にもあります。\n\n使い方:\n  - codes に銘柄コードを渡す: 各社の所属業種を自動で判定し、その業種の分布と、会社ごとの値・順位・位置を返す。\n  - sector に業種名だけを渡す（codes なし）: その業種の分布だけを返す（例: 情報・通信業。中黒の全角/半角どちらでも可）。\n  - metrics で見る指標を絞れる（省略時は下の全指標）。\n\n対象指標: roe, roa, operatingMargin, salesGrowth, equityRatio, per, pbr, dividendYield, payoutRatio, roic, netProfitMargin, grossProfitMargin, debtToEquityRatio, currentRatio, assetTurnover, doe, operatingIncomeGrowth, netIncomeGrowth, epsGrowth, salesCagr3y, operatingIncomeCagr3y, epsCagr3y（いずれも最新年度の値）。\n  - 収益性: roe, roa, roic（投下資本利益率）, operatingMargin（営業利益率）, netProfitMargin（純利益率）, grossProfitMargin（粗利率）\n  - 安全性: equityRatio（自己資本比率）, debtToEquityRatio（D/Eレシオ）, currentRatio（流動比率）\n  - 効率: assetTurnover（総資産回転率）\n  - 成長: salesGrowth（売上高）, operatingIncomeGrowth（営業利益）, netIncomeGrowth（純利益）, epsGrowth（EPS）。いずれも前期比\n    salesCagr3y（売上高）, operatingIncomeCagr3y（営業利益）, epsCagr3y（EPS・分割調整後）。いずれも3年平均成長率（CAGR）＝(最新期÷3期前)^(1/3)−1\n  - 還元・評価: payoutRatio（配当性向）, doe（株主資本配当率）, dividendYield（配当利回り）, per, pbr\n  単位は %、per / pbr は倍、assetTurnover は回。\n\n返す内容:\n  - sectors[]: 業種ごとの companyCount（業種の会社数）と、指標ごとの n（有効社数）・median（中央値）・p25 / p75（四分位）・min / max。\n  - companies[]: 会社ごとに value（その会社の値）・rank（業種内の降順順位。1=業種で最も値が大きい）・of（順位の母数）・\n    percentile（0-100。業種内で値が小さい側から数えた位置。90なら業種の上位10%の大きさ）・diffFromMedian（中央値との差）。\n  - rank / percentile は「値の大きさの順」です。PER・PBR のように低いほうが割安とされる指標でも、\n    大きいほど rank が小さくなります。良し悪しの判定ではありません（順位がそのまま優劣を表すわけではありません）。\n\n外れ値・欠損の扱い:\n  - 中央値・四分位は外れ値に強い順位統計です。極端な値で中央値は動きません（min / max は外れ値も含むため参考値）。\n  - 値が取れない（null）会社は母集団から外し、n に含めません。\n  - 赤字などで per / pbr が 0 以下・算出不能の会社、配当性向がマイナスの会社は母集団から除外します（ただし指定した会社自身の value は参考として返し、note に理由を付けます）。\n  - n が 5 未満の指標は smallSample=true の参考値です。\n  - 金融業（銀行業・保険業・証券･商品先物取引業・その他金融業）は営業利益率・売上高成長率・ROIC・純利益率・粗利率・D/Eレシオ・流動比率・総資産回転率・営業利益成長率・売上高と営業利益の3年平均成長率が\n    業種内でも定義が揃わない（または開示されない）ため計算せず、excludedMetrics に理由を返します。ROE・ROA・自己資本比率・DOE・純利益成長率・EPS成長率などは業種内の比較として有効です。\n  - 成長率は前期の値が小さい・赤字だった会社で数千%以上になることがあります（中央値・四分位は影響を受けにくい一方、min / max は参考値）。\n  - 3年平均成長率（〜Cagr3y）は3期前と最新期の値がともにプラスの会社だけで計算します（赤字をまたぐ会社・3期前の決算が無い会社・決算期変更で12か月×3にならない会社は null で母集団に入りません）。IFRS 移行をまたぐ場合は移行前の値を IFRS 組替値の比で連結して比べます。\n  - D/Eレシオは有利子負債÷自己資本、DOE は一株配当÷一株純資産です。債務超過などでマイナスの会社は母集団から除外します。\n  - 業種内にはIFRS・米国基準・日本基準の会社が混在します（営業利益などの定義が会社により異なる）。\n  - oneOffSuspected: true の会社は特別損益で純利益が嵩上げされている可能性があり、ROE・PER・配当性向などに影響します。\n\nデータの基準:\n  - per / pbr / dividendYield は決算時点の擬似株価（有報の XBRL から復元できる値）ベースで、現在の市場株価ではありません。\n    配当利回りは有報の当期確定実績ベースで、来期の予想ではありません。\n  - 業種は東証33業種（summary の sector）。ETF・REIT 等は含みません。\n\n※このツールは codes に指定した銘柄数ぶん利用回数を使います（同じコードの重複は1件にまとめます。最大 10 回。業種だけの指定・1銘柄なら1回）。\n\n応答の metricLabels は英語キー→日本語指標名の対訳です。利用者向けには日本語名（例: roe→「ROE（自己資本利益率）」）のほうが伝わりやすくなります。\nデータ品質・値の異常・不具合に触れる場合も同様で、フィールド名を示すときは「発行済株式数（sharesOutstanding）」のように日本語を主・英語キーを括弧内にすると読みやすくなります。\n\n※ 本データは情報提供を目的とし、投資助言・推奨ではありません。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "codes": {
+            "description": "銘柄コードの配列（最大10件。例: [\"7203\", \"6758\"]）。同じコードは1件にまとめ、件数ぶん利用回数を使います。",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "maxItems": 10,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 20
+                }
+              }
+            ]
+          },
+          "sector": {
+            "description": "業種名（例: 電気機器）。codes を指定しない場合のみ使えます。",
+            "type": "string",
+            "maxLength": 50
+          },
+          "metrics": {
+            "description": "見たい指標の英語キー（省略時は全指標）。使える指標: roe, roa, operatingMargin, salesGrowth, equityRatio, per, pbr, dividendYield, payoutRatio, roic, netProfitMargin, grossProfitMargin, debtToEquityRatio, currentRatio, assetTurnover, doe, operatingIncomeGrowth, netIncomeGrowth, epsGrowth, salesCagr3y, operatingIncomeCagr3y, epsCagr3y",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "maxItems": 30,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 50
+                }
+              }
+            ]
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_main_customers",
+      "description": "有価証券報告書の「主要な顧客ごとの情報」（連結売上高の10%以上を占める販売先）を返します。1回の呼び出しで次のどちらか一方を指定します。\n\n1. code を指定: その会社の主要な販売先（顧客名・金額・売上高に占める割合・関連セグメント）。\n2. customer を指定: その販売先に売っている会社の一覧（逆引き）。\n   customer が証券コード（例: 7203）なら、販売先を上場会社に名寄せした結果を返します（例: 「トヨタ自動車に売っている上場会社」）。\n   customer が社名の一部（例: アマゾン）なら、上場していない販売先も含めて全社の販売先名を部分一致で探します。\n\n【重要: 開示の範囲】開示対象は売上高の10%以上を占める販売先だけです（会社によっては10%未満も載せます）。\nそのため「載っていない」は取引がないことを意味しません。status で区別してください:\n  listed=販売先の記載あり / none=「10%以上の販売先はない」旨の記載 / noBlock=記載なし / text=文章のみ（原本で確認）/ unparsed=読み取り失敗。\n全上場企業のうち販売先を表で開示しているのは約4割、「該当なし」が約6割です（2026-10 時点の最新有報）。\n逆引きは「社名が完全一致で名寄せできた」ものが対象です。表記違い・子会社宛て・非上場の販売先は証券コード指定の結果に出ません。\ncustomerMatch=group は「○○グループ」宛てで、その会社単体への販売とは限りません。\n\n金額は円（amountYen）。外貨建ての表は円に直さず amountRaw に原文の単位つきで返します。\nsalesSharePct は金額÷その期の連結売上高で当社が計算した値、ratioPct は有報に記載されていた割合です。\n個人の販売先の氏名は表示しません（name は「個人（氏名は表示しません）」）。\n\n関連ツール: 会社の財務は get_edinet_financial_data、大株主は get_major_shareholders_history。\n\n応答の metricLabels は英語キー→日本語指標名の対訳です。利用者向けには日本語名（例: salesSharePct→「売上高に占める割合」）のほうが伝わりやすくなります。\nデータ品質・値の異常・不具合に触れる場合も同様で、フィールド名を示すときは「発行済株式数（sharesOutstanding）」のように日本語を主・英語キーを括弧内にすると読みやすくなります。\n\n※ 本データは情報提供を目的とし、投資助言・推奨ではありません。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "description": "証券コード（例: 6902）。その会社の主要な販売先を返します。customer とは同時に指定できません。",
+            "type": "string"
+          },
+          "customer": {
+            "description": "販売先の証券コード（例: 7203）または社名の一部（例: アマゾン）。その販売先に売っている会社を返します。code とは同時に指定できません。",
+            "type": "string"
+          },
+          "limit": {
+            "description": "逆引きで返す会社数の上限（デフォルト: 30、最大: 100）",
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_stock_analysis",
+      "description": "1回の呼び出しで銘柄の全体像を返します。「○○を分析して」のような総合的な分析に向いています。\n個別の深掘りには各ツール（get_edinet_financial_data・get_ideal_price・get_stock_score・get_dcf_valuation・get_industry_benchmark・get_earnings_forecast）があります。\n\nセクション（sections[]。各セクションに詳しく見るための個別ツール名 detailTool を添えます）:\n  1. financials: 財務。直近5期の売上・営業利益・経常利益・純利益・EPS・BPS・1株配当・配当性向・ROE・自己資本比率・営業CF・簡易FCF と、一過性損益の注記（earningsQuality）。推移は chartSeries（単位ごとのグラフ用の系列）でも返す\n  【グラフ】financials の chartSeries は年ごとの推移（売上・利益 / 1株指標 / ROE）です。グラフ（棒・折れ線）にすると推移が分かりやすくなります。\n  2. idealPrice: 理想株価。low / mid / high・verdict・alphaPct・verdictBasis・擬似株価など\n  3. stockScore: 6軸スコア（割安度・稼ぐ力・成長性・安全性・還元力・事業独占力）と注記\n  4. industryBenchmark: 業種比較。ROE・営業利益率・自己資本比率・PER・PBR・配当利回り・売上成長率の、業種の中央値と業種内の順位\n  5. earningsForecast: 会社予想・進捗。今期予想・進捗率（四半期累計÷通期予想。ライトプラン以上）・最新の業績/配当修正の修正前後\n  6. dcf: DCF。乖離率・主要な前提（WACC・永続成長率・ベースFCF・成長率）。算出できない会社は status: \"unavailable\" とその理由\n\n値は各個別ツールを呼んだときと同じです（同じ処理をそのまま呼んで要約しています）。注意事項（caveats）は文の区切りで先頭だけに縮めています。\n理想株価・DCF の先頭の priceDateNote に、判定・乖離率がいつの株価（決算期末の擬似株価）との比較かを書きます（判定はこの時点のものです）。\n有報の文章（事業等のリスクなど）・直近の適時開示・大株主や大量保有・主要な販売先は含みません。\n総合分析のあと、利用者が「もっと深掘りして」と言えば、それらを個別ツールで追加で調べられます（使えるツールと呼び方は応答の followUp に載せます）。\n\n【利用回数】返したセクションの数だけ使います（1回の呼び出しで最大6回分）。\n  データを返せなかったセクション（status: \"unavailable\"。個別ツールのエラーのほか、DCF を算出できない会社のように値が無く理由だけのセクションも含む）は数えません。使った回数は応答の usage に書きます。\n  今日の残りが足りないときは、残りに収まる数のセクションだけを（上の番号の順に）返してその数だけ使い、返さなかったセクションは usage.withheld に挙げます（取得し直す方法と、回数の多いプランがあることを usage.withheldNote に書きます）。\n  上場廃止・ETF・REIT・存在しないコードは分析せず、その理由と search_stocks の案内を返します（0回。利用回数は使いません）。\n\ncurrentPrice に利用者自身が確認した株価を渡すと、理想株価（verdictAtCurrentPrice・alphaPctAtCurrentPrice）・DCF（gapPercentAtCurrentPrice）・6軸スコアをその株価でも判定します（各個別ツールの currentPrice と同じ意味）。\ncurrentPrice を渡さない場合の株価は決算期末時点の擬似株価（有報の PER×EPS 等から復元）で、現在の市場株価ではありません。\n\n応答に watchlistSuggestion が含まれる場合、それはこの銘柄が利用者の監視リストに未登録であること（action: \"can-add\"）、または監視リストが上限に達していること（action: \"limit-reached\"）を知らせる情報です（note に要点）。利用者が追加を望んだときは add_to_watchlist で登録できます。\nfollowUp は、深掘りに使える個別ツール（deepDiveTools）と利用回数（deepDiveMaxUsage）、その要点（note）です。\n\n※ 本データは情報提供を目的とし、投資助言・推奨ではありません。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 20,
+            "description": "証券コード（例: 7203、140A。全角や「7203.T」も可）"
+          },
+          "currentPrice": {
+            "description": "利用者自身が確認した現在の株価（円）。渡すと理想株価・DCF・6軸スコアをその株価でも判定します（任意）。",
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "add_to_watchlist",
+      "description": "監視銘柄に追加します。\nメモ(note)には、その銘柄で何を気にしているかを書いておけます。\n登録した銘柄は get_watchlist で、メモ・登録日・前回確認日と一緒に一覧できます。\nその観点で何が起きたかは、get_timely_disclosures / get_large_holdings /\nget_earnings_forecast などで確認できます。\n\n登録上限: 10銘柄（現在のプラン: free）。\n上限を超える分は rejectedOverLimit、形式が不正なものは rejectedInvalid に入ります\n（他の銘柄は登録されます）。rejected は両者の合算です。\n既に登録済みの銘柄は duplicated に入り、重複登録はされません。\n\n銘柄コードは英字入り（140A 等）も指定できます。全角・.T 付きも自動で正規化します。\n\n※ 本データは情報提供を目的とし、投資助言・推奨ではありません。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "codes": {
+            "description": "追加する証券コードの配列（例: [\"7203\", \"6758\"]）",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "note": {
+            "description": "メモ（任意。全銘柄に同じメモが付きます）。300文字を超える分は切り詰めて保存します（master プランは無制限）。",
+            "type": "string"
+          }
+        },
+        "required": [
+          "codes"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_watchlist",
+      "description": "監視銘柄の一覧を取得します。\n\nメモ(note)には、その銘柄で何を気にしているかを書いておけます。\n登録日(addedAt)はメモを書いた時点で、上書きされません。\nlastCheckedAt は前回この一覧を取得した時刻です（この時刻の記録だけは今回の取得で更新します。登録内容・メモは変えません）。\nこの2つの間に何が起きたかは、get_timely_disclosures / get_large_holdings / get_earnings_forecast などで確認できます。\n\n※この一覧取得は登録銘柄数ぶん利用回数を使います（0件・1件なら1回）。\n\n※ 本データは情報提供を目的とし、投資助言・推奨ではありません。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "remove_from_watchlist",
+      "description": "監視銘柄から削除します。登録されていないコードは notFound に入ります（エラーにはしません）。\n\n※ 本データは情報提供を目的とし、投資助言・推奨ではありません。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "codes": {
+            "description": "削除する証券コードの配列",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          }
+        },
+        "required": [
+          "codes"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "update_watchlist_note",
+      "description": "監視銘柄に登録済みの銘柄の、メモ(note)だけを書き換えます。\n登録日・前回確認日は変わりません（削除して登録し直すと、登録日がリセットされます）。\n元のメモは上書きされます。追記するときは、get_watchlist で今のメモを読んでから全文を渡すと、元の内容を残せます。\n空文字を渡すと、メモを消します。\n登録されていない銘柄は notFound: true で返します（登録はしません。登録は add_to_watchlist）。\nメモの上限: 300文字（超えた分は切り詰め、truncated: true）。\n\n※ 本データは情報提供を目的とし、投資助言・推奨ではありません。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "証券コード（例: 7203、140A）"
+          },
+          "note": {
+            "type": "string",
+            "description": "新しいメモの全文。空文字でメモを消す"
+          }
+        },
+        "required": [
+          "code",
+          "note"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "report_issue",
+      "description": "データの誤りに気づいたら、利用者の同意を得たうえで報告します。\n報告してよいか、必ず利用者に確認してから呼び出してください。\n\n報告した数値が自動で直ることはありません。運営が原本（有価証券報告書・\n決算短信など）を確認したうえで手動で修正します。\n\n1日あたり10件までです。上限に達すると daily_limit エラーになります。\n\n銘柄コードは英字入り（140A 等）も指定できます。\n\n※ 本データは情報提供を目的とし、投資助言・推奨ではありません。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "対象の証券コード（例: 7203、140A）"
+          },
+          "field": {
+            "description": "誤りがある指標・項目名（任意、例: ROE、配当性向）",
+            "type": "string"
+          },
+          "fiscalYear": {
+            "description": "対象の年度（任意、例: 2025年3月期）",
+            "type": "string"
+          },
+          "message": {
+            "type": "string",
+            "description": "誤りの内容（1〜500文字）。何がどう違うと思うかを具体的に書いてください"
+          },
+          "sourceUrl": {
+            "description": "根拠となる情報源のURL（任意、http/https のみ）",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    }
+  ],
+  "version": "1.0.0"
+}
